@@ -1,5 +1,5 @@
-<x-filament-panels::page>
-    <form wire:submit="submit">
+<x-filament::page>
+    <form wire:submit.prevent="submit">
         {{ $this->form }}
         
         @if($selected_app)
@@ -8,4 +8,4 @@
             </x-filament::button>
         @endif
     </form>
-</x-filament-panels::page>
+</x-filament::page>
