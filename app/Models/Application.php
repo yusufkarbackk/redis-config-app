@@ -10,7 +10,7 @@ class Application extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'description', 'api_key'];
+    protected $fillable = ['id','name', 'description', 'api_key'];
 
     protected static function boot() {
         parent::boot();

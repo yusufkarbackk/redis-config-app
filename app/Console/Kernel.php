@@ -2,8 +2,10 @@
 
 namespace App\Console;
 
+use Illuminate\Console\Command;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+use Predis\Configuration\Option\Commands;
 
 class Kernel extends ConsoleKernel
 {
