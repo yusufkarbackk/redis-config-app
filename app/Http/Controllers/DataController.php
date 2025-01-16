@@ -32,6 +32,7 @@ class DataController extends Controller
             'xadd',
             [
                 $streamKey,
+                '*',
                 $filteredData,
             ]
         );

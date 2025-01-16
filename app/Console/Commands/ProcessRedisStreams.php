@@ -2,10 +2,13 @@
 
 namespace App\Console\Commands;
 
+require 'vendor/autoload.php';
+
 use App\Models\DatabaseConfig;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Log;
+use Predis\Client as PredisClient;
 use PDO;
 
 class ProcessRedisStreams extends Command
@@ -29,39 +32,40 @@ class ProcessRedisStreams extends Command
      */
     public function handle()
     {
-        $redis = Redis::connection();
+        $redis = new Redis();
 
         while (true) {
             try {
                 // Get all active database configurations
                 $databases = DatabaseConfig::with('fields.application')->get();
-
+                
                 // Process each database's subscriptions
                 foreach ($databases as $db) {
                     // Get all applications this database subscribes to
                     $applications = $db->fields
                         ->pluck('application')
                         ->unique('id');
-
+                    Log::info('Databases Query Result:', $applications[0]->toArray());
+                    die();
                     foreach ($applications as $app) {
                         $streamKey = "app:{$app->id}:stream";
                         $groupName = $db->consumer_group;
 
                         // Create consumer group if not exists
                         try {
-                            $redis->xGroup('CREATE', $streamKey, $groupName, '0', 'MKSTREAM');
+                            Redis::command('xgroup', ['CREATE', $streamKey, $groupName, '0', 'MKSTREAM']);
                         } catch (\Exception $e) {
                             // Group may already exist
                         }
 
                         // Read new messages
-                        $messages = $redis->xReadGroup(
+                        $messages = Redis::command('xreadgroup', [
                             $groupName,
                             "consumer:{$db->id}",
                             [$streamKey => '>'],
-                            1, // Count
-                            0  // Block timeout
-                        );
+                            1, //count
+                            0 //block timeout
+                        ]);
 
                         if (!$messages) {
                             continue;
@@ -90,7 +94,7 @@ class ProcessRedisStreams extends Command
                                     $this->insertData($pdo, $filteredData);
 
                                     // Acknowledge message
-                                    $redis->xAck($stream, $groupName, [$messageId]);
+                                    Redis::command('xack',[$stream, $groupName, [$messageId]]);
                                 } catch (\Exception $e) {
                                     Log::error("Error processing message {$messageId}: " . $e->getMessage());
                                     // Don't acknowledge - message will be reprocessed
@@ -100,7 +104,7 @@ class ProcessRedisStreams extends Command
                     }
                 }
             } catch (\Throwable $th) {
-                Log::error("Stream processing error: " . $e->getMessage());
+                Log::error("Stream processing error: " . $th->getMessage());
                 sleep(1); // Prevent tight loop on error
             }
         }
