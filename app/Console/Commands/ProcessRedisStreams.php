@@ -37,41 +37,53 @@ class ProcessRedisStreams extends Command
         while (true) {
             try {
                 // Get all active database configurations
-                $databases = DatabaseConfig::with('fields.application')->get();
-                
+                $databases = DatabaseConfig::with('fields')->get();
+                // Log::info('Databases Query Result:', $databases->toArray());
+                // die();
                 // Process each database's subscriptions
                 foreach ($databases as $db) {
                     // Get all applications this database subscribes to
                     $applications = $db->fields
                         ->pluck('application')
                         ->unique('id');
-                    Log::info('Databases Query Result:', $applications[0]->toArray());
-                    die();
+                    // Log::info('Databases Query Result:', $applications->toArray());
+                    // die();
                     foreach ($applications as $app) {
-                        $streamKey = "app:{$app->id}:stream";
-                        $groupName = $db->consumer_group;
-
+                        try {
+                            $streamKey = "app:{$app->id}:stream";
+                            $groupName = $db->consumer_group;
+                        } catch (\Throwable $th) {
+                            Log::error("Stream processing error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
+                            sleep(1);
+                        }
                         // Create consumer group if not exists
                         try {
                             Redis::command('xgroup', ['CREATE', $streamKey, $groupName, '0', 'MKSTREAM']);
                         } catch (\Exception $e) {
-                            // Group may already exist
+                            Log::error("Create group error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
+                            sleep(1);
                         }
 
                         // Read new messages
-                        $messages = Redis::command('xreadgroup', [
-                            $groupName,
-                            "consumer:{$db->id}",
-                            [$streamKey => '>'],
-                            1, //count
-                            0 //block timeout
-                        ]);
+                        try {
+                            $messages = Redis::command('xreadgroup', [
+                                $groupName,
+                                "consumer:{$db->id}",
+                                [$streamKey => '>'],
+                                1, //count
+                                0 //block timeout
+                            ]);
 
-                        if (!$messages) {
-                            continue;
+                            if (!$messages) {
+                                continue;
+                            }
+                        } catch (\Throwable $th) {
+                            Log::error("Read messages error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
+                            sleep(1);
                         }
-
+                        //dd(array_keys($messages[$streamKey])[0]);
                         foreach ($messages as $stream => $entries) {
+                            // dd(array_keys($entries)[0]);
                             foreach ($entries as $messageId => $data) {
                                 // Get fields this database wants from this app
                                 $wantedFields = $db->fields
@@ -92,19 +104,22 @@ class ProcessRedisStreams extends Command
 
                                     // Insert data
                                     $this->insertData($pdo, $filteredData);
+                                    Log::info("insert data");
 
                                     // Acknowledge message
-                                    Redis::command('xack',[$stream, $groupName, [$messageId]]);
+                                    Redis::command('xack', [$stream, $groupName, [$messageId]]);
                                 } catch (\Exception $e) {
                                     Log::error("Error processing message {$messageId}: " . $e->getMessage());
                                     // Don't acknowledge - message will be reprocessed
                                 }
                             }
                         }
+                        $id = array_keys($messages[$streamKey])[0];
+                        Redis::command('xdel', [$streamKey, [$id]]);
                     }
                 }
             } catch (\Throwable $th) {
-                Log::error("Stream processing error: " . $th->getMessage());
+                Log::error("Stream processing error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
                 sleep(1); // Prevent tight loop on error
             }
         }

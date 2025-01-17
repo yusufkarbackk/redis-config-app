@@ -16,7 +16,6 @@ class DataController extends Controller
 
         $apiKey = $request->header('X-API-Key');
         $application = Application::where('api_key', $apiKey)->firstOrFail();
-
         //validate incoming fields against configured fields
         $validFields = $application->fields()->pluck('name')->toArray();
         $incomingData = $request->all();
@@ -30,7 +29,7 @@ class DataController extends Controller
         //dd($streamKey);
         $MessageId = Redis::command(
             'xadd',
-            [
+            [   
                 $streamKey,
                 '*',
                 $filteredData,
