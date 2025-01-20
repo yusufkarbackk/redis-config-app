@@ -73,6 +73,7 @@ class ProcessRedisStreams extends Command
                                 1, //count
                                 0 //block timeout
                             ]);
+                            Log::info('Messages:' . print_r($messages, true));
 
                             if (!$messages) {
                                 continue;
@@ -114,10 +115,10 @@ class ProcessRedisStreams extends Command
                                 }
                             }
                         }
-                        $id = array_keys($messages[$streamKey])[0];
-                        Redis::command('xdel', [$streamKey, [$id]]);
                     }
                 }
+                $id = array_keys($messages[$streamKey])[0];
+                Redis::command('xdel', [$streamKey, [$messageId]]);
             } catch (\Throwable $th) {
                 Log::error("Stream processing error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
                 sleep(1); // Prevent tight loop on error

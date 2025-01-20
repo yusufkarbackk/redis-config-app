@@ -17,7 +17,8 @@ class DatabaseConfig extends Model
         'database_name',
         'username',
         'password',
-        'consumer_group '
+        'consumer_group ',
+        'tables'
     ];
 
     protected $hidden = ['password'];
