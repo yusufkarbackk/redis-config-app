@@ -26,4 +26,9 @@ class ApplicationField extends Model
             'database_config_id'
         );
     }
+
+    public function fieldSubscriptions()
+    {
+        return $this->hasMany(DatabaseFieldSubscription::class, 'application_field_id');
+    }   
 }

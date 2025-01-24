@@ -17,8 +17,7 @@ class DatabaseConfig extends Model
         'database_name',
         'username',
         'password',
-        'consumer_group ',
-        'tables'
+        'consumer_group',
     ];
 
     protected $hidden = ['password'];
@@ -35,6 +34,12 @@ class DatabaseConfig extends Model
         });
     }
 
+    public function fieldSubscriptions()
+    {
+        return $this->hasMany(DatabaseFieldSubscription::class, 'database_config_id');
+    }
+
+
     public function fields()
     {
         return $this->belongsToMany(
@@ -43,6 +48,11 @@ class DatabaseConfig extends Model
             'database_config_id',
             'application_field_id'
         )->withTimestamps();
+    }
+
+    public function tables()
+    {
+        return $this->hasMany(Table::class, 'database_config_id');
     }
 
     public function subscribeFields()

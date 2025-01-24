@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\DatabaseConfigResource\Pages;
 use App\Filament\Resources\DatabaseConfigResource\RelationManagers;
+use App\Models\Application;
 use App\Models\DatabaseConfig;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -58,59 +59,10 @@ class DatabaseConfigResource extends Resource
                             ->disabled()
                             ->dehydrated(true)
                             ->required(),
-                    ])->columns(2),
-
-                Forms\Components\Section::make('Database Tables')
-                    ->schema([
-                        Forms\Components\Repeater::make('tables')
-                            ->label('Tables')
-                            ->schema([
-                                Forms\Components\TextInput::make('table_name')
-                                    ->label('Table Name')
-                                    ->required()
-                                    ->maxLength(255),
-
-                                Forms\Components\Select::make('application_id')
-                                    ->label('Application to Subscribe')
-                                    ->options(function (callable $get) {
-                                        $subscribedApps = collect($get('tables') ?? [])
-                                            ->pluck('application_id')
-                                            ->filter();
-
-                                        return \App\Models\Application::query()
-                                            ->whereNotIn('id', $subscribedApps)
-                                            ->pluck('name', 'id');
-                                    })
-                                    ->searchable()
-                                    ->required()
-                                    ->reactive()
-                                    ->afterStateUpdated(fn($state, callable $set) => $set('fields', [])),
-
-                                Forms\Components\CheckboxList::make('fields')
-                                    ->label('Fields')
-                                    ->options(function (callable $get) {
-                                        $applicationId = $get('application_id');
-                                        if (!$applicationId) {
-                                            return [];
-                                        }
-
-                                        return \App\Models\ApplicationField::query()
-                                            ->where('application_id', $applicationId)
-                                            ->get()
-                                            ->mapWithKeys(function ($field) {
-                                                return [
-                                                    $field->id => "{$field->name} ({$field->data_type})",
-                                                ];
-                                            });
-                                    })
-                                    ->columns(3)
-                                    ->searchable()
-                                    ->required(),
-                            ])
-                            ->addActionLabel('Add Table') // Label for the add button
-                            ->collapsible()
-                            ->required(),
                     ])
+                    ->columns(2)
+                    //->successRedirectUrl('/admin/database-configs')
+
             ]);
     }
 
@@ -124,9 +76,6 @@ class DatabaseConfigResource extends Resource
                     ->badge(),
                 Tables\Columns\TextColumn::make('host'),
                 Tables\Columns\TextColumn::make('database_name'),
-                Tables\Columns\TextColumn::make('fields_count')
-                    ->counts('fields')
-                    ->label('Subscribed Fields'),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
