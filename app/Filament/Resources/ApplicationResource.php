@@ -32,7 +32,7 @@ class ApplicationResource extends Resource
                     ->disabled()
                     ->default(fn () => Str::random(32)),
                 Forms\Components\Repeater::make('fields')
-                    ->relationship()
+                    ->relationship('applicationFields')
                     ->schema([
                         Forms\Components\TextInput::make('name')
                             ->required(),

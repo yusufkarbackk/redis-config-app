@@ -17,16 +17,14 @@ class DataController extends Controller
         $apiKey = $request->header('X-API-Key');
         $application = Application::where('api_key', $apiKey)->firstOrFail();
         //validate incoming fields against configured fields
-        $validFields = $application->fields()->pluck('name')->toArray();
+        $validFields = $application->applicationFields()->pluck('name')->toArray();
         $incomingData = $request->all();
-        //dd($validFields);
+
         $filteredData = array_intersect_key($incomingData, array_flip($validFields));
-        //dd(print_r($filteredData));
         
-        //dd($application);
-        $id = $application->getAttributes()['id'];
+        $id = $application->getAttributes()['api_key'];
         $streamKey = "app:{$id}:stream";
-        //dd($streamKey);
+
         $MessageId = Redis::command(
             'xadd',
             [   
@@ -35,7 +33,7 @@ class DataController extends Controller
                 $filteredData,
             ]
         );
-
+        //dd($MessageId);
         return response()->json([
             'message' => 'Data received and queued',
             'message_id' => $MessageId

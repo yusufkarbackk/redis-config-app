@@ -10,7 +10,7 @@ class Application extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['id','name', 'description', 'api_key'];
+    protected $fillable = ['name', 'description', 'api_key'];
 
     protected static function boot() {
         parent::boot();
@@ -39,7 +39,11 @@ class Application extends Model
         });
     }
 
-    public function fields() {
+    public function applicationFields() {
         return $this->hasMany(ApplicationField::class);
+    }
+
+    public function tables() {
+        return $this->hasMany(DatabaseTable::class, 'application_id');
     }
 }

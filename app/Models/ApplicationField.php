@@ -17,18 +17,25 @@ class ApplicationField extends Model
         return $this->belongsTo(Application::class);
     }
 
-    public function databaseSubscriptions()
+    public function tableFelds()
     {
-        return $this->belongsToMany(
-            DatabaseConfig::class,
-            'database_field_subscriptions',
-            'application_field_id',
-            'database_config_id'
-        );
+        return $this->hasMany(TableField::class, 'application_field_id');
     }
 
-    public function fieldSubscriptions()
-    {
-        return $this->hasMany(DatabaseFieldSubscription::class, 'application_field_id');
-    }   
+    
+
+    // public function databaseSubscriptions()
+    // {
+    //     return $this->belongsToMany(
+    //         DatabaseConfig::class,
+    //         'database_field_subscriptions',
+    //         'application_field_id',
+    //         'database_config_id'
+    //     );
+    // }
+
+    // public function fieldSubscriptions()
+    // {
+    //     return $this->hasMany(DatabaseFieldSubscription::class, 'application_field_id');
+    // }   
 }
