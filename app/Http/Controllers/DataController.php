@@ -21,7 +21,7 @@ class DataController extends Controller
         $incomingData = $request->all();
 
         $filteredData = array_intersect_key($incomingData, array_flip($validFields));
-        
+
         $id = $application->getAttributes()['api_key'];
         $streamKey = "app:{$id}:stream";
 
@@ -33,6 +33,7 @@ class DataController extends Controller
                 $filteredData,
             ]
         );
+
         //dd($MessageId);
         return response()->json([
             'message' => 'Data received and queued',

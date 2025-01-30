@@ -9,4 +9,9 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateTable extends CreateRecord
 {
     protected static string $resource = TableResource::class;
+
+    protected function getRedirectUrl(): string
+    {
+        return '/admin/tables'; 
+    }
 }

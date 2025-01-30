@@ -10,6 +10,7 @@ use App\Models\DatabaseConfig;
 use App\Models\DatabaseTable;
 use App\Models\Table as TableModel;
 use Faker\Provider\ar_EG\Text;
+use Filament\Actions\CreateAction;
 use Filament\Forms;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Repeater;
@@ -29,6 +30,7 @@ class TableResource extends Resource
     protected static ?string $model = DatabaseTable::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-view-columns';
+    protected ?bool $hasDatabaseTransactions = true;
 
     public static function form(Form $form): Form
     {
@@ -58,7 +60,7 @@ class TableResource extends Resource
                             ->schema([
                                 TextInput::make('field_name')
                                     ->label('Field Name'),
-                                
+
                                 Select::make('field_type')
                                     ->options([
                                         'string' => 'String',
@@ -72,17 +74,17 @@ class TableResource extends Resource
                                     ]),
                                 Select::make('application_field_id')
                                     ->label('Application Field')
-                                    ->options(function (callable $get){
+                                    ->options(function (callable $get) {
                                         $appliation_id = $get('../../application_id');
                                         return $appliation_id ? ApplicationField::where('application_id', $appliation_id)->get()->pluck('name', 'id') : [];
                                     })
                                     ->reactive()
-                                    // ->afterStateUpdated(function (callable $set) {
-                                    //     // Clear application_field_id when application_id changes
-                                    //     $set('application_field_id', null);
-                                    // }),
+                                // ->afterStateUpdated(function (callable $set) {
+                                //     // Clear application_field_id when application_id changes
+                                //     $set('application_field_id', null);
+                                // }),
                             ]),
-                        
+
                     ])
             ]);
     }
