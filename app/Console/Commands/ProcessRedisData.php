@@ -27,66 +27,8 @@ class ProcessRedisData extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
-    {
-        $pdo = new PDO("mysql:host=127.0.0.1;dbname=filament_app", "root", "");
-
-        $query = $pdo->query("
-            SELECT database_tables.id, database_tables.table_name, database_tables.database_config_id, 
-                database_configs.host, database_configs.port, database_configs.name, 
-                database_configs.username, database_configs.password,
-                database_tables.application_id, 
-                GROUP_CONCAT(application_fields.name) as fields
-            FROM database_tables
-            JOIN database_configs ON database_tables.database_config_id = database_configs.id
-            JOIN database_field_subscriptions ON database_tables.id = database_field_subscriptions.table_id
-            JOIN application_fields ON database_field_subscriptions.application_field_id = application_fields.id
-            GROUP BY database_tables.id
-        ");
-
-        $tableConfigs = $query->fetchAll(PDO::FETCH_ASSOC);
-
-        // Prepare the stream names
-        $app_streams = [];
-        foreach ($tableConfigs as $config) {
-            $app_streams[$config['application_id'] . "_stream"] = '$'; // Listen from the latest entry
-        }
-
-        echo "Listening to Redis streams: " . implode(", ", array_keys($app_streams)) . "\n";
-
-        // Process data continuously
-        while (true) {
-            $data = Redis::command('xRead', [$app_streams, null, 5000]); // Blocking read
-
-            if ($data) {
-                foreach ($data as $stream => $entries) {
-                    $app_id = str_replace("_stream", "", $stream); // Extract app_id
-
-                    foreach ($entries as $entry) {
-                        $id = $entry[0];
-                        $fields = $entry[1];
-
-                        // Process data for tables subscribed to this app_id
-                        foreach ($tableConfigs as $config) {
-                            if ($config['application_id'] === $app_id) {
-                                // Extract only required fields
-                                $requiredFields = explode(",", $config['fields']);
-                                $filteredData = array_intersect_key($fields, array_flip($requiredFields));
-
-                                // Insert into the correct database
-                                $this->insertIntoDatabase($config, $filteredData);
-                            }
-                        }
-
-                        echo "Processed ID: $id from $app_id\n";
-                    }
-                }
-            } else {
-                echo "No new data. Waiting...\n";
-            }
-
-            usleep(100000); // Sleep to reduce CPU usage
-        }
+    public function handle() { 
+        
     }
 
     function insertIntoDatabase($config, $data)

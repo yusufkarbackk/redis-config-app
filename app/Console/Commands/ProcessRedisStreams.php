@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 require 'vendor/autoload.php';
 
 use App\Models\DatabaseConfig;
+use App\Models\DatabaseTable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Log;
@@ -32,87 +33,85 @@ class ProcessRedisStreams extends Command
      */
     public function handle()
     {
-        $redis = new Redis();
-
         while (true) {
             try {
-                // Get all active database configurations
-                $databases = DatabaseConfig::with('fields')->get();
-                // Log::info('Databases Query Result:', $databases->toArray());
-                // die();
-                // Process each database's subscriptions
-                foreach ($databases as $db) {
-                    // Get all applications this database subscribes to
-                    $applications = $db->fields
-                        ->pluck('application')
-                        ->unique('id');
-                    // Log::info('Databases Query Result:', $applications->toArray());
+                // Get all database tables and its fields configurations
+                $tables = DatabaseTable::with('tableFields', 'application', 'database')->get();
+                // Log::info('Databases Query Result:', $tables->toArray());
+                //die();
+
+                foreach ($tables as $table) {
+                    $db = $table->database;
+                    // Log::info('Databases Query Result:', $table->toArray());
                     // die();
-                    foreach ($applications as $app) {
-                        try {
-                            $streamKey = "app:{$app->id}:stream";
-                            $groupName = $db->consumer_group;
-                        } catch (\Throwable $th) {
-                            Log::error("Stream processing error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
-                            sleep(1);
+
+                    // Get all applications this table subscribes to
+                    $application = $table->application;
+                    // Log::info('Databases Query Result:', $application->toArray());
+                    // die();
+                    try {
+                        $streamKey = "app:{$application->id}:stream";
+                        $groupName = $table->database->consumer_group;
+                    } catch (\Throwable $th) {
+                        Log::error("Stream processing error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
+                        sleep(1);
+                    }
+                    // Create consumer group if not exists
+                    try {
+                        Redis::command('xgroup', ['CREATE', $streamKey, $groupName, '0', 'MKSTREAM']);
+                    } catch (\Exception $e) {
+                        Log::error("Create group error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
+                        sleep(1);
+                    }
+
+                    // Read new messages
+                    try {
+                        $messages = Redis::command('xreadgroup', [
+                            $groupName,
+                            "consumer:{$db->id}",
+                            [$streamKey => '>'],
+                            1, //count
+                            0 //block timeout
+                        ]);
+                        Log::info('Messages:' . print_r($messages, true));
+
+                        if (!$messages) {
+                            continue;
                         }
-                        // Create consumer group if not exists
-                        try {
-                            Redis::command('xgroup', ['CREATE', $streamKey, $groupName, '0', 'MKSTREAM']);
-                        } catch (\Exception $e) {
-                            Log::error("Create group error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
-                            sleep(1);
-                        }
+                    } catch (\Throwable $th) {
+                        Log::error("Read messages error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
+                        sleep(1);
+                    }
+                    //dd(array_keys($messages[$streamKey])[0]);
+                    foreach ($messages as $stream => $entries) {
+                        // dd(array_keys($entries)[0]);
+                        foreach ($entries as $messageId => $data) {
+                            // Get fields this table wants from this app
+                            $wantedFields = $table->table_fields
+                                ->where('application_id', $application->id)
+                                ->pluck('name')
+                                ->toArray();
 
-                        // Read new messages
-                        try {
-                            $messages = Redis::command('xreadgroup', [
-                                $groupName,
-                                "consumer:{$db->id}",
-                                [$streamKey => '>'],
-                                1, //count
-                                0 //block timeout
-                            ]);
-                            Log::info('Messages:' . print_r($messages, true));
+                            // Filter data to only include subscribed fields
+                            $filteredData = array_intersect_key($data, array_flip($wantedFields));
 
-                            if (!$messages) {
-                                continue;
-                            }
-                        } catch (\Throwable $th) {
-                            Log::error("Read messages error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
-                            sleep(1);
-                        }
-                        //dd(array_keys($messages[$streamKey])[0]);
-                        foreach ($messages as $stream => $entries) {
-                            // dd(array_keys($entries)[0]);
-                            foreach ($entries as $messageId => $data) {
-                                // Get fields this database wants from this app
-                                $wantedFields = $db->fields
-                                    ->where('application_id', $app->id)
-                                    ->pluck('name')
-                                    ->toArray();
+                            try {
+                                // Connect to target database
+                                $pdo = new PDO(
+                                    "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
+                                    $db->username,
+                                    $db->password
+                                );
 
-                                // Filter data to only include subscribed fields
-                                $filteredData = array_intersect_key($data, array_flip($wantedFields));
+                                // Insert data
+                                $this->insertData($pdo, $filteredData, $table->table_name);
+                                Log::info("insert data");
 
-                                try {
-                                    // Connect to target database
-                                    $pdo = new PDO(
-                                        "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
-                                        $db->username,
-                                        $db->password
-                                    );
-
-                                    // Insert data
-                                    $this->insertData($pdo, $filteredData);
-                                    Log::info("insert data");
-
-                                    // Acknowledge message
-                                    Redis::command('xack', [$stream, $groupName, [$messageId]]);
-                                } catch (\Exception $e) {
-                                    Log::error("Error processing message {$messageId}: " . $e->getMessage());
-                                    // Don't acknowledge - message will be reprocessed
-                                }
+                                // Acknowledge message
+                                Redis::command('xack', [$stream, $groupName, [$messageId]]);
+                            } catch (\Exception $e) {
+                                Log::error("Error processing message {$messageId}: " . $e->getMessage());
+                                // Don't acknowledge - message will be reprocessed
                             }
                         }
                     }
@@ -126,14 +125,15 @@ class ProcessRedisStreams extends Command
         }
     }
 
-    private function insertData(PDO $pdo, array $data)
+    private function insertData(PDO $pdo, array $data, string $table_name)
     {
         $fields = array_keys($data);
         $values = array_values($data);
         $placeholders = array_fill(0, count($fields), '?');
 
         $sql = sprintf(
-            "INSERT INTO incoming_data (%s) VALUES (%s)",
+            "INSERT INTO %s (%s) VALUES (%s)",
+            $table_name,
             implode(',', $fields),
             implode(',', $placeholders)
         );
