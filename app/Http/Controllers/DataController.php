@@ -37,7 +37,8 @@ class DataController extends Controller
         //dd($MessageId);
         return response()->json([
             'message' => 'Data received and queued',
-            'message_id' => $MessageId
+            'message_id' => $MessageId,
+            
         ]);
     }
 }

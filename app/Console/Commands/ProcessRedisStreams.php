@@ -35,14 +35,13 @@ class ProcessRedisStreams extends Command
     {
         while (true) {
             try {
-                // Get all database tables and its fields configurations
+                // Get all tables and its fields configurations
                 $tables = DatabaseTable::with('tableFields', 'application', 'database')->get();
-                // Log::info('Databases Query Result:', $tables->toArray());
-                //die();
+                //Log::info('Databases Query Result:', $tables->toArray());
 
                 foreach ($tables as $table) {
                     $db = $table->database;
-                    // Log::info('Databases Query Result:', $table->toArray());
+                    // Log::info('Databases Query Result:', $db->toArray());
                     // die();
 
                     // Get all applications this table subscribes to
@@ -51,14 +50,18 @@ class ProcessRedisStreams extends Command
                     // die();
                     try {
                         $streamKey = "app:{$application->id}:stream";
-                        $groupName = $table->database->consumer_group;
+                        // Log::info('Messages:' . print_r($streamKey, true));
+                        // die();
+                        $groupName = $db->consumer_group;
+                        // Log::info('Messages:' . print_r($groupName, true));
+                        // die();
                     } catch (\Throwable $th) {
                         Log::error("Stream processing error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
                         sleep(1);
                     }
                     // Create consumer group if not exists
                     try {
-                        Redis::command('xgroup', ['CREATE', $streamKey, $groupName, '0', 'MKSTREAM']);
+                        Redis::command('xgroup', ['CREATE', $streamKey, $groupName, '$', true]);
                     } catch (\Exception $e) {
                         Log::error("Create group error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
                         sleep(1);
@@ -69,12 +72,10 @@ class ProcessRedisStreams extends Command
                         $messages = Redis::command('xreadgroup', [
                             $groupName,
                             "consumer:{$db->id}",
-                            [$streamKey => '>'],
+                            $streamKey,
                             1, //count
-                            0 //block timeout
                         ]);
                         Log::info('Messages:' . print_r($messages, true));
-
                         if (!$messages) {
                             continue;
                         }

@@ -27,8 +27,58 @@ class ProcessRedisData extends Command
     /**
      * Execute the console command.
      */
-    public function handle() { 
-        
+    public function handle()
+    {
+        $streams = ['app:aDQxvJzyTzhlKDNn3xFxuWqSBcBqmZN5:stream', 'app:d6FdEWZAqAv7Gu78OfZz0dSdQKELUzTm:stream'];
+        $group = 'your_consumer_group';
+        $consumer = 'your_consumer_name';
+        $lastId = '>';
+
+        // Ensure each stream has a consumer group (Run only once per stream)
+        foreach ($streams as $stream) {
+            try {
+                Redis::command('xgroup', ['CREATE', $stream, $group, '$', true]);
+            } catch (\Exception $e) {
+                // Ignore if the group already exists
+            }
+        }
+
+        $this->info("Listening to Redis streams: " . implode(', ', $streams));
+
+        while (true) {
+            // Prepare streams array with lastId for each
+            $streamKeys = [];
+            foreach ($streams as $stream) {
+                $streamKeys[$stream] = $lastId;
+            }
+
+            // Read from multiple streams
+            $messages = Redis::command('xreadgroup', [$group, $consumer, $streamKeys, 1]);
+
+            if ($messages) {
+                foreach ($messages as $streamName => $messageData) {
+                    foreach ($messageData as $id => $message) {
+                        $this->info("Stream: $streamName, ID: $id");
+                        $this->info("Message Data: " . json_encode($message));
+                        $config = [
+                            "host" => "127.0.0.1",
+                            "port" => 3306,
+                            "database_name" => "car_db",
+                            "username" => "root",
+                            "password" => "",
+                            "table_name" => "car_table"
+                        ];
+                        $this->insertIntoDatabase($config, $message);
+                        // Process message for the specific stream...
+
+                        // Acknowledge the message
+                        Redis::command('xack', [$streamName, $group, [$id]]);
+                    }
+                }
+            }
+
+            usleep(500000); // Sleep for 0.5 seconds to reduce CPU usage
+        }
     }
 
     function insertIntoDatabase($config, $data)
