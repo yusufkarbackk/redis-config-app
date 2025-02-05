@@ -31,14 +31,14 @@ class ProcessRedisData extends Command
     {
         $streams = ['app:aDQxvJzyTzhlKDNn3xFxuWqSBcBqmZN5:stream', 'app:d6FdEWZAqAv7Gu78OfZz0dSdQKELUzTm:stream'];
         $group = 'your_consumer_group';
-        $consumer = 'your_consumer_name';
+        $consumer = 'your_consumer_name';   
         $lastId = '>';
 
         // Ensure each stream has a consumer group (Run only once per stream)
         foreach ($streams as $stream) {
             try {
                 Redis::command('xgroup', ['CREATE', $stream, $group, '$', true]);
-            } catch (\Exception $e) {
+            } catch (\Exception $e) { 
                 // Ignore if the group already exists
             }
         }
