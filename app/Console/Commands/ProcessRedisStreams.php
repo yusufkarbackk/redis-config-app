@@ -39,7 +39,7 @@ class ProcessRedisStreams extends Command
             try {
                 // Get all tables with relationships
                 $tables = DatabaseTable::with('tableFields', 'application', 'database')->get();
-
+                // Log::info($tables->toArray());
                 foreach ($tables as $table) {
                     $db = $table->database;
                     $application = $table->application;
@@ -86,28 +86,39 @@ class ProcessRedisStreams extends Command
     {
         foreach ($messages[$streamKey] ?? [] as $messageId => $data) {
             try {
-                // Get fields this table wants from this app
-                Log::info(print_r($table->table_fields));
+                if (!$table->tableFields) {
+                    Log::error("No table fields found for table {$table->table_name}");
+                    continue;
+                }
 
-                $wantedFields = $table->table_fields
-                    ->where('application_id', $table->application_id)   
+                // Get fields this table wants from this app
+                $wantedFields = $table->tableFields
+                    ->filter(function ($field) use ($table) {
+                        return $field->application_id == $table->application_id;
+                    })
                     ->pluck('field_name')
                     ->toArray();
 
-                // Filter data to only include subscribed fields
+                if (empty($wantedFields)) {
+                    Log::warning("No fields configured for table {$table->table_name} and application {$table->application_id}");
+                    continue;
+                }
+
                 $filteredData = array_intersect_key($data, array_flip($wantedFields));
 
                 if (!empty($filteredData)) {
                     // Insert data into target database
+                    Log::info($table->toArray());
+
                     $this->insertData($table, $filteredData);
 
                     // Acknowledge message
-                    Redis::command('xack', [$streamKey, $groupName, $messageId]);
+                    Redis::command('xack', [$streamKey, $groupName, [$messageId]]);
 
                     $this->info("Processed message {$messageId} for table {$table->table_name}");
                 }
             } catch (\Exception $e) {
-                Log::error("Error processing message {$messageId}: " . $e->getMessage());
+                Log::error("Error processing message {$messageId}: " . $e->getMessage() .$e->getLine());
                 // Don't acknowledge - message will be reprocessed
             }
         }
@@ -116,6 +127,7 @@ class ProcessRedisStreams extends Command
     private function insertData($table, $data)
     {
         $db = $table->database;
+        Log::info($db->toArray());
 
         $pdo = new PDO(
             "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
@@ -126,7 +138,10 @@ class ProcessRedisStreams extends Command
 
         // Build insert query
         $columns = implode(', ', array_keys($data));
+        Log::info("column" . $columns);
         $values = implode(', ', array_fill(0, count($data), '?'));
+        Log::info("column" . $values);
+
 
         $sql = "INSERT INTO {$table->table_name} ({$columns}) VALUES ({$values})";
 

@@ -38,6 +38,7 @@ class DataController extends Controller
         return response()->json([
             'message' => 'Data received and queued',
             'message_id' => $MessageId,
+            "data" => $filteredData
             
         ]);
     }

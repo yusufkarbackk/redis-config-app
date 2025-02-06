@@ -34,7 +34,7 @@ class DatabaseConfigResource extends Resource
                         Forms\Components\Select::make('connection_type')
                             ->options([
                                 'mysql' => 'MySQL',
-                                'postgres' => 'PostgreSQL'
+                                'pgsql' => 'PostgreSQL'
                             ])
                             ->required(),
                         Forms\Components\TextInput::make('host')

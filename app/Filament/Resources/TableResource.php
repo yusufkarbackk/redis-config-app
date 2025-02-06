@@ -12,6 +12,7 @@ use App\Models\Table as TableModel;
 use Faker\Provider\ar_EG\Text;
 use Filament\Actions\CreateAction;
 use Filament\Forms;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -78,13 +79,21 @@ class TableResource extends Resource
                                         $appliation_id = $get('../../application_id');
                                         return $appliation_id ? ApplicationField::where('application_id', $appliation_id)->get()->pluck('name', 'id') : [];
                                     })
-                                    ->reactive()
+                                    ->reactive(),
+                                Hidden::make('application_id')
+                                    ->default(function (callable $get) {
+                                        return $get('../../application_id');
+                                    })
+                                    ->afterStateHydrated(function (Hidden $component, $state, callable $get) {
+                                        // Set the application_id from the parent form
+                                        $component->state($get('../../application_id'));
+                                    }), // Agar application_id tetap terkirim
+
                                 // ->afterStateUpdated(function (callable $set) {
                                 //     // Clear application_field_id when application_id changes
                                 //     $set('application_field_id', null);
                                 // }),
-                            ]),
-
+                            ])
                     ])
             ]);
     }
