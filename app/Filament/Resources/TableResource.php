@@ -84,16 +84,13 @@ class TableResource extends Resource
                                     ->default(function (callable $get) {
                                         return $get('../../application_id');
                                     })
+                                    ->dehydrated(true)
                                     ->afterStateHydrated(function (Hidden $component, $state, callable $get) {
                                         // Set the application_id from the parent form
                                         $component->state($get('../../application_id'));
                                     }), // Agar application_id tetap terkirim
-
-                                // ->afterStateUpdated(function (callable $set) {
-                                //     // Clear application_field_id when application_id changes
-                                //     $set('application_field_id', null);
-                                // }),
                             ])
+                            ->defaultItems(0)
                     ])
             ]);
     }
