@@ -9,6 +9,8 @@ use App\Models\DatabaseTable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Log;
+use App\Models\Log as appLog;
+
 use Predis\Client as PredisClient;
 use PDO;
 
@@ -27,12 +29,13 @@ class ProcessRedisStreams extends Command
      * @var string
      */
     protected $description = 'Command description';
-
+    //protected $log = new appLog();
     /**
      * Execute the console command.
      */
     public function handle()
     {
+        $log = new appLog();
         $this->info('Starting Redis stream processing...');
 
         while (true) {
@@ -53,6 +56,9 @@ class ProcessRedisStreams extends Command
                             Redis::command('xgroup', ['CREATE', $streamKey, $groupName, '$', 'MKSTREAM']);
                         } catch (\Exception $e) {
                             // Group may already exist - that's fine
+                            $log->log = "Error: " . $e->getMessage();
+                            $log->save();
+
                             Log::info("Consumer group exists or error: " . $e->getMessage());
                         }
 
@@ -71,11 +77,17 @@ class ProcessRedisStreams extends Command
 
                         $this->processMessages($messages, $table, $streamKey, $groupName);
                     } catch (\Throwable $th) {
+                        $log->log = "Error: " . $th->getMessage();
+                        $log->save();
+
                         Log::error("Stream error for {$table->table_name}: " . $th->getMessage() . $th->getLine());
                         sleep(1);
                     }
                 }
             } catch (\Throwable $th) {
+                $log->log = "Error: " . $th->getMessage();
+                $log->save();
+
                 Log::error("Main loop error: " . $th->getMessage());
                 sleep(1);
             }
@@ -84,9 +96,14 @@ class ProcessRedisStreams extends Command
 
     private function processMessages($messages, $table, $streamKey, $groupName)
     {
+        $log = new appLog();
+
         foreach ($messages[$streamKey] ?? [] as $messageId => $data) {
             try {
                 if (!$table->tableFields) {
+                    $log->log = "No table fields found for table {$table->table_name}";
+                    $log->save();
+
                     Log::error("No table fields found for table {$table->table_name}");
                     continue;
                 }
@@ -100,6 +117,9 @@ class ProcessRedisStreams extends Command
                     ->toArray();
 
                 if (empty($wantedFields)) {
+                    $log->log = "No fields configured for table {$table->table_name} and application {$table->application_id}";
+                    $log->save();
+
                     Log::warning("No fields configured for table {$table->table_name} and application {$table->application_id}");
                     continue;
                 }
@@ -116,9 +136,13 @@ class ProcessRedisStreams extends Command
                     Redis::command('xack', [$streamKey, $groupName, [$messageId]]);
 
                     $this->info("Processed message {$messageId} for table {$table->table_name}");
+                    $log->log = "success proccessing message";
+                    $log->save();
                 }
             } catch (\Exception $e) {
-                Log::error("Error processing message {$messageId}: " . $e->getMessage() .$e->getLine());
+                $log->log = "Error processing message {$messageId}: " . $e->getMessage() . $e->getLine();
+                $log->save();
+                Log::error("Error processing message {$messageId}: " . $e->getMessage() . $e->getLine());
                 // Don't acknowledge - message will be reprocessed
             }
         }

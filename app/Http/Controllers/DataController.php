@@ -50,7 +50,7 @@ class DataController extends Controller
 
             ]);
         } catch (\Throwable $th) {
-            $log->log = $th->getMessage() ;
+            $log->log = $th->getMessage()   ;
             $log->save();
         }
     }
