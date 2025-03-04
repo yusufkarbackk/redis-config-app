@@ -1,5 +1,5 @@
 <?php
-
+	
 namespace App\Console\Commands;
 
 require 'vendor/autoload.php';
@@ -70,6 +70,7 @@ class ProcessRedisStreams extends Command
                             1,
                             5000
                         );
+			dump($messages);
 
                         if (!$messages) {
                             continue;
@@ -97,6 +98,7 @@ class ProcessRedisStreams extends Command
     private function processMessages($messages, $table, $streamKey, $groupName)
     {
         $log = new appLog();
+	dump("process message");
 
         foreach ($messages[$streamKey] ?? [] as $messageId => $data) {
             try {
@@ -116,6 +118,8 @@ class ProcessRedisStreams extends Command
                     ->pluck('field_name')
                     ->toArray();
 
+		var_dump($wantedFields);		
+
                 if (empty($wantedFields)) {
                     //$log->log = "No fields configured for table {$table->table_name} and application {$table->application_id}";
                     //$log->save();
@@ -125,17 +129,21 @@ class ProcessRedisStreams extends Command
                 }
 
                 $filteredData = array_intersect_key($data, array_flip($wantedFields));
+		var_dump($filteredData);
 
                 if (!empty($filteredData)) {
                     // Insert data into target database
                     //Log::info($table->toArray());
 
-                    $this->insertData($table, $filteredData);
-
+	
+		    //dump($table->database);
+		
+                  dump($this->insertData($table, $filteredData));                    
+		
                     // Acknowledge message
                     Redis::command('xack', [$streamKey, $groupName, [$messageId]]);
 
-                    $this->info("Processed message {$messageId} for table {$table->table_name}");
+                    dump("Processed message {$messageId} for table {$table->table_name}");
                     //$log->log = "success proccessing message";
                     //$log->save();
                 }
@@ -148,9 +156,19 @@ class ProcessRedisStreams extends Command
         }
     }
 
-    private function insertData($table, $data)
+    public function insertData($table, $data)
     {
+	dump("insert data");
+
+	var_dump($data);
+	
         $db = $table->database;
+
+	//dump($db->connection_type);
+	//dump($db->host);
+	//dump($db->database_name);
+	//dump($db->username);
+	//dump($db->password);
         //Log::info($db->toArray());
 
         $pdo = new PDO(
@@ -160,17 +178,30 @@ class ProcessRedisStreams extends Command
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
         );
 
+	var_dump($pdo);
+
         // Build insert query
         $columns = implode(', ', array_keys($data));
+	dump($columns);
         //Log::info("column" . $columns);
         $values = implode(', ', array_fill(0, count($data), '?'));
+	dump($values);
         //Log::info("column" . $values);
 
 
         $sql = "INSERT INTO {$table->table_name} ({$columns}) VALUES ({$values})";
-
+	dump($sql);
         $stmt = $pdo->prepare($sql);
-        $stmt->execute(array_values($data));
+	dump($stmt);
+        if ($stmt->execute(array_values($data))){
+		dump("Insert success");
+	}else {
+		dump($stmt->errorInfo());
+	}
+	
+	return $pdo->lastInsertId();
+	
+
     }
 
     // while (true) {
