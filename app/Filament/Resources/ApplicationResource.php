@@ -30,7 +30,7 @@ class ApplicationResource extends Resource
                 Forms\Components\TextInput::make('api_key')
                     ->dehydrated(true)
                     ->disabled()
-                    ->default(fn () => Str::random(32)),
+                    ->default(fn() => Str::random(32)),
                 Forms\Components\Repeater::make('fields')
                     ->relationship('applicationFields')
                     ->schema([

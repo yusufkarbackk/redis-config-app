@@ -1,5 +1,5 @@
 <?php
-	
+
 namespace App\Console\Commands;
 
 require 'vendor/autoload.php';
@@ -70,14 +70,14 @@ class ProcessRedisStreams extends Command
                             1,
                             5000
                         );
-			dump($messages);
+                        var_dump($messages);
 
                         if (!$messages) {
                             continue;
                         }
 
                         $this->processMessages($messages, $table, $streamKey, $groupName);
-                    } catch (\Throwable $th) { 
+                    } catch (\Throwable $th) {
                         // $log->log = "Error: " . $th->getMessage();
                         // $log->save();
 
@@ -98,7 +98,7 @@ class ProcessRedisStreams extends Command
     private function processMessages($messages, $table, $streamKey, $groupName)
     {
         $log = new appLog();
-	dump("process message");
+        var_dump("process message");
 
         foreach ($messages[$streamKey] ?? [] as $messageId => $data) {
             try {
@@ -118,7 +118,7 @@ class ProcessRedisStreams extends Command
                     ->pluck('field_name')
                     ->toArray();
 
-		var_dump($wantedFields);		
+                var_dump($wantedFields);
 
                 if (empty($wantedFields)) {
                     //$log->log = "No fields configured for table {$table->table_name} and application {$table->application_id}";
@@ -129,21 +129,21 @@ class ProcessRedisStreams extends Command
                 }
 
                 $filteredData = array_intersect_key($data, array_flip($wantedFields));
-		var_dump($filteredData);
+                var_dump($filteredData);
 
                 if (!empty($filteredData)) {
                     // Insert data into target database
                     //Log::info($table->toArray());
 
-	
-		    //dump($table->database);
-		
-                  dump($this->insertData($table, $filteredData));                    
-		
+
+                    //var_dump($table->database);
+
+                    var_dump($this->insertData($table, $filteredData));
+
                     // Acknowledge message
                     Redis::command('xack', [$streamKey, $groupName, [$messageId]]);
 
-                    dump("Processed message {$messageId} for table {$table->table_name}");
+                    var_dump("Processed message {$messageId} for table {$table->table_name}");
                     //$log->log = "success proccessing message";
                     //$log->save();
                 }
@@ -158,17 +158,17 @@ class ProcessRedisStreams extends Command
 
     public function insertData($table, $data)
     {
-	dump("insert data");
+        var_dump("insert data");
 
-	var_dump($data);
-	
+        var_dump($data);
+
         $db = $table->database;
 
-	//dump($db->connection_type);
-	//dump($db->host);
-	//dump($db->database_name);
-	//dump($db->username);
-	//dump($db->password);
+        //var_dump($db->connection_type);
+        //var_dump($db->host);
+        //var_dump($db->database_name);
+        //var_dump($db->username);
+        //var_dump($db->password);
         //Log::info($db->toArray());
 
         $pdo = new PDO(
@@ -178,142 +178,27 @@ class ProcessRedisStreams extends Command
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
         );
 
-	var_dump($pdo);
+        var_dump($pdo);
 
         // Build insert query
         $columns = implode(', ', array_keys($data));
-	dump($columns);
+        var_dump($columns);
         //Log::info("column" . $columns);
         $values = implode(', ', array_fill(0, count($data), '?'));
-	dump($values);
+        var_dump($values);
         //Log::info("column" . $values);
 
 
         $sql = "INSERT INTO {$table->table_name} ({$columns}) VALUES ({$values})";
-	dump($sql);
+        var_dump($sql);
         $stmt = $pdo->prepare($sql);
-	dump($stmt);
-        if ($stmt->execute(array_values($data))){
-		dump("Insert success");
-	}else {
-		dump($stmt->errorInfo());
-	}
-	
-	return $pdo->lastInsertId();
-	
+        var_dump($stmt);
+        if ($stmt->execute(array_values($data))) {
+            var_dump("Insert success");
+        } else {
+            var_dump($stmt->errorInfo());
+        }
 
+        return $pdo->lastInsertId();
     }
-
-    // while (true) {
-    //     try {
-
-    //         // Get all tables and its fields configurations
-    //         $tables = DatabaseTable::with('tableFields', 'application', 'database')->get();
-    //         //Log::info('Databases Query Result:', $tables->toArray());
-
-    //         foreach ($tables as $table) {
-    //             $db = $table->database;
-    //             // Log::info('Databases Query Result:', $db->toArray());
-    //             // die();
-
-    //             // Get all applications this table subscribes to
-    //             $application = $table->application;
-    //             // Log::info('Databases Query Result:', $application->toArray());
-    //             // die();
-    //             try {
-    //                 $streamKey = "app:{$application->api_key}:stream";
-    //                 // Log::info('Messages:' . print_r($streamKey, true));
-    //                 // die();
-    //                 $groupName = $db->consumer_group;
-    //                 // Log::info('Messages:' . print_r($groupName, true));
-    //                 // die();
-    //             } catch (\Throwable $th) {
-    //                 Log::error("Stream processing error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
-    //                 sleep(1);
-    //             }
-    //             // Create consumer group if not exists
-    //             try {
-    //                 Redis::command('xgroup', ['CREATE', $streamKey, $groupName, '$', true]);
-    //             } catch (\Exception $e) {
-    //                 Log::error("Create group error: " . $e->getMessage() . " " . $e->getFile() . " " . $e->getLine());
-    //                 sleep(1);
-    //             }
-
-    //             // Read new messages
-    //             try {
-    //                 $messages = Redis::command('xreadgroup', [
-    //                     $groupName,
-    //                     "consumer:{$db->id}", // Define Group and Consumer
-    //                     $streamKey,
-    //                     1,
-    //                     5000,
-
-    //                 ]);
-    //                 Log::info('Messages:' . print_r($messages, true));
-    //                 if (!$messages) {
-    //                     continue;
-    //                 }
-    //             } catch (\Throwable $th) {
-    //                 Log::error("Read messages error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
-    //                 sleep(1);
-    //             }
-    //             //dd(array_keys($messages[$streamKey])[0]);
-    //             foreach ($messages as $stream => $entries) {
-    //                 // dd(array_keys($entries)[0]);
-    //                 foreach ($entries as $messageId => $data) {
-    //                     // Get fields this table wants from this app
-    //                     $wantedFields = $table->table_fields
-    //                         ->filter(fn($field) => $field->application_id == $application->id)
-    //                         ->pluck('name')
-    //                         ->toArray();
-
-    //                     // Filter data to only include subscribed fields
-    //                     $filteredData = array_intersect_key($data, array_flip($wantedFields));
-
-    //                     try {
-    //                         // Connect to target database
-    //                         $pdo = new PDO(
-    //                             "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
-    //                             $db->username,
-    //                             $db->password
-    //                         );
-
-    //                         // Insert data
-    //                         $this->insertData($pdo, $filteredData, $table->table_name);
-    //                         Log::info("insert data");
-
-    //                         // Acknowledge message
-    //                         Redis::command('xack', [$stream, $groupName, [$messageId]]);
-    //                     } catch (\Exception $e) {
-    //                         Log::error("Error processing message {$messageId}: " . $e->getMessage());
-    //                         // Don't acknowledge - message will be reprocessed
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //         $id = array_keys($messages[$streamKey])[0];
-    //         log::info('ID:' . print_r($id, true));
-    //         Redis::command('xdel', [$streamKey, [$id]]);
-    //     } catch (\Throwable $th) {
-    //         Log::error("Stream processing error: " . $th->getMessage() . " " . $th->getFile() . " " . $th->getLine());
-    //         sleep(1); // Prevent tight loop on error
-    //     }
-    // }
-
-    // private function insertData(PDO $pdo, array $data, string $table_name)
-    // {
-    //     $fields = array_keys($data);
-    //     $values = array_values($data);
-    //     $placeholders = array_fill(0, count($fields), '?');
-
-    //     $sql = sprintf(
-    //         "INSERT INTO %s (%s) VALUES (%s)",
-    //         $table_name,
-    //         implode(',', $fields),
-    //         implode(',', $placeholders)
-    //     );
-
-    //     $stmt = $pdo->prepare($sql);
-    //     $stmt->execute($values);
-    // }
 }
