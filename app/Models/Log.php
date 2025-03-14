@@ -8,8 +8,14 @@ use Illuminate\Database\Eloquent\Model;
 class Log extends Model
 {
     use HasFactory;
-    protected $table = 'log';
-    protected $fillable = ['log'];
+    protected $fillable = [
+        'source', 
+        'destination',
+        'data_sent',
+        'data_received',
+        'sent_at',
+        'received_at '
+    ];
 
 
 

@@ -35,7 +35,8 @@ class ProcessRedisStreams extends Command
      */
     public function handle()
     {
-        $log = new appLog();
+        $logData = [];
+        //$log = new appLog();
         $this->info('Starting Redis stream processing...');
 
         while (true) {
@@ -47,6 +48,11 @@ class ProcessRedisStreams extends Command
                     $db = $table->database;
                     $application = $table->application;
 
+                    $dataToLog = [
+                        'source' => $application->name,
+                        'destination' => $tables->database->name,
+                    ];
+
                     try {
                         $streamKey = "app:{$application->api_key}:stream";
                         $groupName = $db->consumer_group;
@@ -56,8 +62,8 @@ class ProcessRedisStreams extends Command
                             Redis::command('xgroup', ['CREATE', $streamKey, $groupName, '$', 'MKSTREAM']);
                         } catch (\Exception $e) {
                             // Group may already exist - that's fine
-                            //$log->log = "Error: " . $e->getMessage();
-                            //$log->save();
+                            // $log->log = "Error: " . $e->getMessage();
+                            // $log->save();
 
                             //Log::error("Consumer group exists or error: " . $e->getMessage());
                         }
@@ -70,13 +76,16 @@ class ProcessRedisStreams extends Command
                             1,
                             5000
                         );
+
                         var_dump($messages);
 
                         if (!$messages) {
                             continue;
                         }
+                        $dataToLog['data_sent'] = json_encode($messages);
+                        $dataToLog['sent_at'] = now();
 
-                        $this->processMessages($messages, $table, $streamKey, $groupName);
+                        $this->processMessages($messages, $table, $streamKey, $groupName, $dataToLog);
                     } catch (\Throwable $th) {
                         // $log->log = "Error: " . $th->getMessage();
                         // $log->save();
@@ -95,7 +104,7 @@ class ProcessRedisStreams extends Command
         }
     }
 
-    private function processMessages($messages, $table, $streamKey, $groupName)
+    private function processMessages($messages, $table, $streamKey, $groupName, $dataToLog)
     {
         $log = new appLog();
         var_dump("process message");
@@ -105,8 +114,6 @@ class ProcessRedisStreams extends Command
                 if (!$table->tableFields) {
                     //$log->log = "No table fields found for table {$table->table_name}";
                     //$log->save();
-
-                    //Log::error("No table fields found for table {$table->table_name}");
                     continue;
                 }
 
@@ -129,6 +136,7 @@ class ProcessRedisStreams extends Command
                 }
 
                 $filteredData = array_intersect_key($data, array_flip($wantedFields));
+                $dataToLog['data_received'] = json_encode($filteredData);
                 var_dump($filteredData);
 
                 if (!empty($filteredData)) {
@@ -139,6 +147,8 @@ class ProcessRedisStreams extends Command
                     //var_dump($table->database);
 
                     var_dump($this->insertData($table, $filteredData));
+                    $dataToLog['received_at'] = now();
+                    \App\Models\Log::create($dataToLog);
 
                     // Acknowledge message
                     Redis::command('xack', [$streamKey, $groupName, [$messageId]]);
@@ -148,10 +158,7 @@ class ProcessRedisStreams extends Command
                     //$log->save();
                 }
             } catch (\Exception $e) {
-                //$log->log = "Error processing message {$messageId}: " . $e->getMessage() . $e->getLine();
-                //$log->save();
-                //Log::error("Error processing message {$messageId}: " . $e->getMessage() . $e->getLine());
-                // Don't acknowledge - message will be reprocessed
+
             }
         }
     }
@@ -163,13 +170,6 @@ class ProcessRedisStreams extends Command
         var_dump($data);
 
         $db = $table->database;
-
-        //var_dump($db->connection_type);
-        //var_dump($db->host);
-        //var_dump($db->database_name);
-        //var_dump($db->username);
-        //var_dump($db->password);
-        //Log::info($db->toArray());
 
         $pdo = new PDO(
             "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
