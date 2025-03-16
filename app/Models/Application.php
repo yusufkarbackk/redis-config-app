@@ -44,6 +44,6 @@ class Application extends Model
     }
 
     public function tables() {
-        return $this->hasMany(DatabaseTable::class, 'application_id');
+        return $this->hasMany(DatabaseTable::class,);
     }
 }

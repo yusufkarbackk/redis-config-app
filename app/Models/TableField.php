@@ -13,7 +13,7 @@ class TableField extends Model
 
     public function table()
     {
-        return $this->belongsTo(DatabaseTable::class, 'table_id');
+        return $this->belongsTo(DatabaseTable::class, 'table_id', 'id');
     }
 
     public function applicationField()

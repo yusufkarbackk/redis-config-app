@@ -41,8 +41,8 @@ class TableResource extends Resource
                     ->schema([
                         Select::make('database_config_id')
                             ->label('Database')
-                            ->relationship('database', 'name'),
-
+                            ->relationship('database', 'name')
+                            ->required(),
                         TextInput::make('table_name')
                             ->label('Table Name'),
 
@@ -81,16 +81,14 @@ class TableResource extends Resource
                                     })
                                     ->reactive(),
                                 Hidden::make('application_id')
-                                    ->default(function (callable $get) {
-                                        return $get('../../application_id');
-                                    })
-                                    ->dehydrated(true)
-                                    ->afterStateHydrated(function (Hidden $component, $state, callable $get) {
-                                        // Set the application_id from the parent form
-                                        $component->state($get('../../application_id'));
-                                    }), // Agar application_id tetap terkirim
+                                ->default(fn (callable $get) => $get('../../application_id'))
+                                ->afterStateHydrated(fn (Hidden $component, $state, callable $get) => $component->state($get('../../application_id')))
+                                ->dehydrated(),
+                                Hidden::make('table_id') // Menyimpan ID tabel yang sedang dibuat
+                                    ->default(fn(callable $get): mixed => $get('../../id')) // Ambil ID tabel dari parent
+                                    ->dehydrated(true),
                             ])
-                            ->defaultItems(0)
+                            ->defaultItems(1)
                     ])
             ]);
     }
@@ -99,9 +97,10 @@ class TableResource extends Resource
     {
         return $table
             ->columns([
+                TextColumn::make('id'),
                 Tables\Columns\TextColumn::make('table_name'),
-                TextColumn::make('application.name', 'Application'),
-                TextColumn::make('database.name', 'Database'),
+                TextColumn::make('application.name'),
+                TextColumn::make('database.name'),
             ])
             ->filters([
                 //

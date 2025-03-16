@@ -15,7 +15,7 @@ return new class extends Migration {
             $table->string('destination'); // Tujuan data
             $table->json('data_sent'); // Data yang dikirim
             $table->json('data_received')->nullable(); // Data yang diterima
-            $table->timestamp('sent_at'); // Waktu pengiriman
+            $table->timestamp('sent_at')->nullable(); // Waktu pengiriman
             $table->timestamp('received_at')->nullable(); // Waktu diterima
             $table->dropColumn('log'); // Replace 'column_name' with the actual column name
         });
