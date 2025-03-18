@@ -47,10 +47,9 @@ class ProcessRedisStreams extends Command
                 foreach ($tables as $table) {
                     $db = $table->database;
                     $application = $table->application;
-
                     $dataToLog = [
                         'source' => $application->name,
-                        'destination' => $tables->database->name,
+                        'destination' => $table->database->name,
                     ];
 
                     try {
@@ -62,10 +61,6 @@ class ProcessRedisStreams extends Command
                             Redis::command('xgroup', ['CREATE', $streamKey, $groupName, '$', 'MKSTREAM']);
                         } catch (\Exception $e) {
                             // Group may already exist - that's fine
-                            // $log->log = "Error: " . $e->getMessage();
-                            // $log->save();
-
-                            //Log::error("Consumer group exists or error: " . $e->getMessage());
                         }
 
                         // Read new messages using XREADGROUP
@@ -82,23 +77,18 @@ class ProcessRedisStreams extends Command
                         if (!$messages) {
                             continue;
                         }
-                        $dataToLog['data_sent'] = json_encode($messages);
+                        dump($messages[$streamKey]);
+                        $dataToLog['data_sent'] = json_encode($messages[$streamKey]);
                         $dataToLog['sent_at'] = now();
 
                         $this->processMessages($messages, $table, $streamKey, $groupName, $dataToLog);
                     } catch (\Throwable $th) {
-                        // $log->log = "Error: " . $th->getMessage();
-                        // $log->save();
 
-                        //Log::error("Stream error for {$table->table_name}: " . $th->getMessage() . $th->getLine());
                         sleep(1);
                     }
                 }
             } catch (\Throwable $th) {
-                // $log->log = "Error: " . $th->getMessage();
-                // $log->save();
 
-                //Log::error("Main loop error: " . $th->getMessage());
                 sleep(1);
             }
         }
@@ -125,37 +115,31 @@ class ProcessRedisStreams extends Command
                     ->pluck('field_name')
                     ->toArray();
 
-                var_dump($wantedFields);
+                //var_dump($wantedFields);
 
                 if (empty($wantedFields)) {
-                    //$log->log = "No fields configured for table {$table->table_name} and application {$table->application_id}";
-                    //$log->save();
-
-                    //Log::warning("No fields configured for table {$table->table_name} and application {$table->application_id}");
                     continue;
                 }
 
                 $filteredData = array_intersect_key($data, array_flip($wantedFields));
                 $dataToLog['data_received'] = json_encode($filteredData);
-                var_dump($filteredData);
+                //var_dump($filteredData);
 
                 if (!empty($filteredData)) {
-                    // Insert data into target database
-                    //Log::info($table->toArray());
-
-
-                    //var_dump($table->database);
-
                     var_dump($this->insertData($table, $filteredData));
                     $dataToLog['received_at'] = now();
-                    \App\Models\Log::create($dataToLog);
+                    dump($dataToLog);
+                    try {
+                        \App\Models\Log::create($dataToLog);
+                    } catch (\Throwable $th) {
+                        //throw $th;
+                        dump($th->getMessage());
+                    }
 
                     // Acknowledge message
                     Redis::command('xack', [$streamKey, $groupName, [$messageId]]);
 
                     var_dump("Processed message {$messageId} for table {$table->table_name}");
-                    //$log->log = "success proccessing message";
-                    //$log->save();
                 }
             } catch (\Exception $e) {
 
@@ -165,9 +149,9 @@ class ProcessRedisStreams extends Command
 
     public function insertData($table, $data)
     {
-        var_dump("insert data");
+        //var_dump("insert data");
 
-        var_dump($data);
+        //var_dump($data);
 
         $db = $table->database;
 
@@ -178,25 +162,25 @@ class ProcessRedisStreams extends Command
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
         );
 
-        var_dump($pdo);
+        //var_dump($pdo);
 
         // Build insert query
         $columns = implode(', ', array_keys($data));
-        var_dump($columns);
+        //var_dump($columns);
         //Log::info("column" . $columns);
         $values = implode(', ', array_fill(0, count($data), '?'));
-        var_dump($values);
+        //var_dump($values);
         //Log::info("column" . $values);
 
 
         $sql = "INSERT INTO {$table->table_name} ({$columns}) VALUES ({$values})";
-        var_dump($sql);
+        //var_dump($sql);
         $stmt = $pdo->prepare($sql);
-        var_dump($stmt);
+        //var_dump($stmt);
         if ($stmt->execute(array_values($data))) {
-            var_dump("Insert success");
+            //var_dump("Insert success");
         } else {
-            var_dump($stmt->errorInfo());
+            //var_dump($stmt->errorInfo());
         }
 
         return $pdo->lastInsertId();

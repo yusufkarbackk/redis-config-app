@@ -13,7 +13,7 @@ class DatabaseFieldSubscription extends Model
     protected $fillable = [
         'database_config_id',
         'application_field_id',
-        'table_id', 
+        'table_id',
     ];
 
     // Relationships
@@ -29,6 +29,6 @@ class DatabaseFieldSubscription extends Model
 
     public function table()
     {
-        return $this->belongsTo(Table::class, 'table_id');
+        return $this->belongsTo(DatabaseTable::class, 'table_id');
     }
 }

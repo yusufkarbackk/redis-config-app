@@ -55,40 +55,39 @@ class TableResource extends Resource
                                 $set('fields.*.application_field_id', null);
                             }),
 
-                        Repeater::make('table_fields')
-                            ->label('Fields')
-                            ->relationship('tableFields')
-                            ->schema([
-                                TextInput::make('field_name')
-                                    ->label('Field Name'),
+                        // Repeater::make('table_fields')
+                        //     ->label('Fields')
+                        //     ->relationship('tableFields')
+                        //     ->schema([
+                        //         TextInput::make('field_name')
+                        //             ->label('Field Name'),
 
-                                Select::make('field_type')
-                                    ->options([
-                                        'string' => 'String',
-                                        'integer' => 'Integer',
-                                        'text' => 'Text',
-                                        'boolean' => 'Boolean',
-                                        'date' => 'Date',
-                                        'datetime' => 'DateTime',
-                                        'time' => 'Time',
-                                        'json' => 'JSON',
-                                    ]),
-                                Select::make('application_field_id')
-                                    ->label('Application Field')
-                                    ->options(function (callable $get) {
-                                        $appliation_id = $get('../../application_id');
-                                        return $appliation_id ? ApplicationField::where('application_id', $appliation_id)->get()->pluck('name', 'id') : [];
-                                    })
-                                    ->reactive(),
-                                Hidden::make('application_id')
-                                ->default(fn (callable $get) => $get('../../application_id'))
-                                ->afterStateHydrated(fn (Hidden $component, $state, callable $get) => $component->state($get('../../application_id')))
-                                ->dehydrated(),
-                                Hidden::make('table_id') // Menyimpan ID tabel yang sedang dibuat
-                                    ->default(fn(callable $get): mixed => $get('../../id')) // Ambil ID tabel dari parent
-                                    ->dehydrated(true),
-                            ])
-                            ->defaultItems(1)
+                        //         Select::make('field_type')
+                        //             ->options([
+                        //                 'string' => 'String',
+                        //                 'integer' => 'Integer',
+                        //                 'text' => 'Text',
+                        //                 'boolean' => 'Boolean',
+                        //                 'date' => 'Date',
+                        //                 'datetime' => 'DateTime',
+                        //                 'time' => 'Time',
+                        //                 'json' => 'JSON',
+                        //             ]),
+                        //         Select::make('application_field_id')
+                        //             ->label('Application Field')
+                        //             ->options(function (callable $get) {
+                        //                 $appliation_id = $get('../../application_id');
+                        //                 return $appliation_id ? ApplicationField::where('application_id', $appliation_id)->get()->pluck('name', 'id') : [];
+                        //             })
+                        //             ->reactive(),
+                        //         Hidden::make('application_id')
+                        //             ->default(fn(callable $get) => $get('../../application_id'))
+                        //             ->dehydrated(true), // Ensure it gets stored in the database
+                        //         Hidden::make('table_id') // Menyimpan ID tabel yang sedang dibuat
+                        //             ->default(fn(callable $get): mixed => $get('../../id')) // Ambil ID tabel dari parent
+                        //             ->dehydrated(true),
+                        //     ])
+                        //     ->defaultItems(1)
                     ])
             ]);
     }
@@ -99,8 +98,8 @@ class TableResource extends Resource
             ->columns([
                 TextColumn::make('id'),
                 Tables\Columns\TextColumn::make('table_name'),
-                TextColumn::make('application.name'),
-                TextColumn::make('database.name'),
+                TextColumn::make(name: 'application.name'),
+                TextColumn::make(name: 'database.name'),
             ])
             ->filters([
                 //
@@ -118,7 +117,7 @@ class TableResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\TableFieldsRelationManager::class
         ];
     }
 

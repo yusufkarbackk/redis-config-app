@@ -13,7 +13,6 @@ class DataController extends Controller
 {
     public function store(Request $request)
     {
-        $log = new Log();
 
         //validate API key
 
@@ -21,12 +20,11 @@ class DataController extends Controller
         $application = Application::where('api_key', $apiKey)->select(['name', 'api_key', 'id'])->firstOrFail();
         //validate incoming fields against configured fields
         $validFields = $application->applicationFields()->pluck('name')->toArray();
-
         //$filteredData = array_intersect_key($incomingData, array_flip($validFields));
 
         $id = $application->getAttributes()['api_key'];
-        $appName = $application->get('name');
         $streamKey = "app:{$id}:stream";
+        // dd($streamKey);
 
         $filteredData = $request->only($validFields);
 
@@ -53,6 +51,7 @@ class DataController extends Controller
         } catch (\Throwable $th) {
             // $log->log = $th->getMessage();
             // $log->save();
+            dd($th->getMessage());
         }
     }
 }

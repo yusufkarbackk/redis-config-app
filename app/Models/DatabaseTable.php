@@ -23,7 +23,7 @@ class DatabaseTable extends Model
 
     public function tableFields()
     {
-        return $this->hasMany(TableField::class, 'table_id');
+        return $this->hasMany(TableField::class, 'table_id', 'id');
     }
 
     // public function fields()

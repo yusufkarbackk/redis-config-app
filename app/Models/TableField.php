@@ -11,7 +11,7 @@ class TableField extends Model
 
     protected $fillable = ['table_id', 'field_name', 'field_type', 'application_field_id', 'application_id'];
 
-    public function table()
+    public function databaseTable()
     {
         return $this->belongsTo(DatabaseTable::class, 'table_id', 'id');
     }
