@@ -45,6 +45,9 @@ class ProcessRedisStreams extends Command
                 $tables = DatabaseTable::with('tableFields', 'application', 'database')->get();
                 // Log::info($tables->toArray());
                 foreach ($tables as $table) {
+                    // dump($table->database->name);
+                    // dump($table->table_name);
+                    // dump($table->database->consumer_group);
                     $db = $table->database;
                     $application = $table->application;
                     $dataToLog = [
@@ -54,7 +57,7 @@ class ProcessRedisStreams extends Command
 
                     try {
                         $streamKey = "app:{$application->api_key}:stream";
-                        $groupName = $db->consumer_group;
+                        $groupName = $table->consumer_group;
 
                         // Create consumer group if not exists
                         try {
@@ -71,8 +74,6 @@ class ProcessRedisStreams extends Command
                             1,
                             5000
                         );
-
-                        var_dump($messages);
 
                         if (!$messages) {
                             continue;
@@ -126,9 +127,9 @@ class ProcessRedisStreams extends Command
                 //var_dump($filteredData);
 
                 if (!empty($filteredData)) {
-                    var_dump($this->insertData($table, $filteredData));
+                    $this->insertData($table, $filteredData);
                     $dataToLog['received_at'] = now();
-                    dump($dataToLog);
+                    //dump($dataToLog);
                     try {
                         \App\Models\Log::create($dataToLog);
                     } catch (\Throwable $th) {
@@ -139,8 +140,8 @@ class ProcessRedisStreams extends Command
                     // Acknowledge message
                     Redis::command('xack', [$streamKey, $groupName, [$messageId]]);
 
-                    var_dump("Processed message {$messageId} for table {$table->table_name}");
-                }
+                    dump("Processed message {$messageId} for table {$table->table_name}");
+                }   
             } catch (\Exception $e) {
 
             }
@@ -152,7 +153,7 @@ class ProcessRedisStreams extends Command
         //var_dump("insert data");
 
         //var_dump($data);
-
+        dump($table->table_name);
         $db = $table->database;
 
         $pdo = new PDO(

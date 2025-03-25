@@ -9,7 +9,7 @@ class DatabaseTable extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['database_config_id', 'table_name', 'application_id'];
+    protected $fillable = ['database_config_id', 'table_name', 'application_id', 'consumer group'];
 
     public function database()
     {

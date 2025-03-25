@@ -25,6 +25,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Log;
+use Str;
 
 class TableResource extends Resource
 {
@@ -54,6 +55,11 @@ class TableResource extends Resource
                                 // Clear application_field_id when application_id changes
                                 $set('fields.*.application_field_id', null);
                             }),
+                        Forms\Components\TextInput::make('consumer_group')
+                            ->default(fn() => 'group:' . Str::random(16))
+                            ->disabled()
+                            ->dehydrated(true)
+                            ->required(),
 
                         // Repeater::make('table_fields')
                         //     ->label('Fields')
