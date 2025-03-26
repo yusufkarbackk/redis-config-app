@@ -141,7 +141,7 @@ class ProcessRedisStreams extends Command
                     Redis::command('xack', [$streamKey, $groupName, [$messageId]]);
 
                     dump("Processed message {$messageId} for table {$table->table_name}");
-                }   
+                }
             } catch (\Exception $e) {
 
             }
@@ -155,6 +155,12 @@ class ProcessRedisStreams extends Command
         //var_dump($data);
         dump($table->table_name);
         $db = $table->database;
+
+        if (!$this->isDatabaseOnline($db->host)) {
+            dump("Database {$db->name} is down. Holding message...");
+            $this->holdMessageForRetry($table, $data);
+            return false;
+        }
 
         $pdo = new PDO(
             "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
@@ -185,5 +191,54 @@ class ProcessRedisStreams extends Command
         }
 
         return $pdo->lastInsertId();
+    }
+
+    public function isDatabaseOnline($host)
+    {
+        // dump($db->connection_type);
+        // dump($db->host);
+        // dump($db->database_name);
+        // try {
+        //     $pdo = new PDO(
+        //         "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
+        //         $db->username,
+        //         $db->password,
+        //         [PDO::ATTR_TIMEOUT => 2] // Set timeout
+        //     );
+        //     return true;
+        // } catch (\Exception $th) {
+        //     return false;
+        // }
+
+        $pingResult = exec("ping -n 1 " . escapeshellarg($host), $output, $status);
+        return $status === 0;
+
+    }
+
+    public function holdMessageForRetry($table, $data)
+    {
+        $retryKey = "retry:{$table->consumer_group}"; // Use consumer group as the key
+        Redis::rpush($retryKey, json_encode(['table' => $table->table_name, 'data' => $data]));
+        dump("Message held for retry in {$retryKey}");
+    }
+
+    public function retryFailedMessage()
+    {
+        $tables = DatabaseTable::all(); // Get all tables
+
+        foreach ($tables as $table) {
+            $consumerGroup = $table->consumer_group;
+            $retryKey = "retry:{$consumerGroup}";
+
+            // Check if messages are waiting for this consumer group
+            while (Redis::llen($retryKey) > 0) {
+                $message = json_decode(Redis::lpop($retryKey), true);
+                $targetTable = DatabaseTable::where('table_name', $message['table'])->first();
+
+                if ($targetTable) {
+                    $this->insertData($targetTable, $message['data']);
+                }
+            }
+        }
     }
 }
