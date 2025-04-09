@@ -45,9 +45,7 @@ class ProcessRedisStreams extends Command
                 $tables = DatabaseTable::with('tableFields', 'application', 'database')->get();
                 // Log::info($tables->toArray());
                 foreach ($tables as $table) {
-                    // dump($table->database->name);
-                    // dump($table->table_name);
-                    // dump($table->database->consumer_group);
+
                     $db = $table->database;
                     $application = $table->application;
                     $dataToLog = [
@@ -103,8 +101,7 @@ class ProcessRedisStreams extends Command
         foreach ($messages[$streamKey] ?? [] as $messageId => $data) {
             try {
                 if (!$table->tableFields) {
-                    //$log->log = "No table fields found for table {$table->table_name}";
-                    //$log->save();
+
                     continue;
                 }
 
@@ -154,43 +151,45 @@ class ProcessRedisStreams extends Command
 
         //var_dump($data);
         dump($table->table_name);
+        dump($table->database->host);
+        dump($table->database->port);
+
         $db = $table->database;
 
-        if (!$this->isDatabaseOnline($db->host)) {
-            dump("Database {$db->name} is down. Holding message...");
-            $this->holdMessageForRetry($table, $data);
-            return false;
-        }
+        if ($this->isDatabaseServerReachable($table->database->host, $table->database->port)) {
+            $pdo = new PDO(
+                "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
+                $db->username,
+                $db->password,
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            );
 
-        $pdo = new PDO(
-            "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
-            $db->username,
-            $db->password,
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-        );
+            //var_dump($pdo);
 
-        //var_dump($pdo);
-
-        // Build insert query
-        $columns = implode(', ', array_keys($data));
-        //var_dump($columns);
-        //Log::info("column" . $columns);
-        $values = implode(', ', array_fill(0, count($data), '?'));
-        //var_dump($values);
-        //Log::info("column" . $values);
+            // Build insert query
+            $columns = implode(', ', array_keys($data));
+            //var_dump($columns);
+            //Log::info("column" . $columns);
+            $values = implode(', ', array_fill(0, count($data), '?'));
+            //var_dump($values);
+            //Log::info("column" . $values);
 
 
-        $sql = "INSERT INTO {$table->table_name} ({$columns}) VALUES ({$values})";
-        //var_dump($sql);
-        $stmt = $pdo->prepare($sql);
-        //var_dump($stmt);
-        if ($stmt->execute(array_values($data))) {
-            //var_dump("Insert success");
+            $sql = "INSERT INTO {$table->table_name} ({$columns}) VALUES ({$values})";
+            //var_dump($sql);
+            $stmt = $pdo->prepare($sql);
+            //var_dump($stmt);
+            if ($stmt->execute(array_values($data))) {
+                //var_dump("Insert success");
+            } else {
+                //var_dump($stmt->errorInfo());
+            }
+
+            return $pdo->lastInsertId();
         } else {
-            //var_dump($stmt->errorInfo());
+            // Maybe retry later or log as 'down'
+            $this->holdMessageForRetry($table, $data);
         }
-
-        return $pdo->lastInsertId();
     }
 
     public function isDatabaseOnline($host)
@@ -213,6 +212,18 @@ class ProcessRedisStreams extends Command
         $pingResult = exec("ping -n 1 " . escapeshellarg($host), $output, $status);
         return $status === 0;
 
+    }
+
+    public function isDatabaseServerReachable($host, $port): bool
+    {
+        $connection = @fsockopen($host, $port, $errno, $errstr, 2);
+        if ($connection) {
+            fclose($connection);
+            dump("Database server is reachable");
+            return true;
+        }
+        dump("Database server is not reachable");
+        return false;
     }
 
     public function holdMessageForRetry($table, $data)

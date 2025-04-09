@@ -124,7 +124,7 @@ return [
         'client' => env('REDIS_CLIENT', 'phpredis'),
         'default' => [
             'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '34.136.252.133'),
+            'host' => env('REDIS_HOST', '34.134.196.66'),
             'username' => env('REDIS_USERNAME', 'yusuf'),
             'password' => env('REDIS_PASSWORD', 'yusuf64'),
             'port' => env('REDIS_PORT', '6380'),

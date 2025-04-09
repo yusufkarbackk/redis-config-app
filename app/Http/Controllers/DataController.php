@@ -17,9 +17,12 @@ class DataController extends Controller
         //validate API key
 
         $apiKey = $request->header('X-API-Key');
+        //dd($apiKey);
         $application = Application::where('api_key', $apiKey)->select(['name', 'api_key', 'id'])->firstOrFail();
+        //dd($application);
         //validate incoming fields against configured fields
         $validFields = $application->applicationFields()->pluck('name')->toArray();
+        //dd($validFields);
         //$filteredData = array_intersect_key($incomingData, array_flip($validFields));
 
         $id = $application->getAttributes()['api_key'];
@@ -27,7 +30,7 @@ class DataController extends Controller
         // dd($streamKey);
 
         $filteredData = $request->only($validFields);
-
+        //dd($filteredData);
         try {
             $MessageId = Redis::command(
                 'xadd',
@@ -37,6 +40,8 @@ class DataController extends Controller
                     $filteredData,
                 ]
             );
+
+            //dd($MessageId);
 
             // $log->log = "send data to Redis Server";
             // $log->save();
@@ -51,7 +56,11 @@ class DataController extends Controller
         } catch (\Throwable $th) {
             // $log->log = $th->getMessage();
             // $log->save();
-            dd($th->getMessage());
+            return response()->json([
+                'message' => $th->getMessage(),
+                "line" => $th->getLine(),
+                "file" => $th->getFile()
+            ]);
         }
     }
 }
