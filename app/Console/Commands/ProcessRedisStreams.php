@@ -168,12 +168,8 @@ class ProcessRedisStreams extends Command
 
             // Build insert query
             $columns = implode(', ', array_keys($data));
-            //var_dump($columns);
-            //Log::info("column" . $columns);
+           
             $values = implode(', ', array_fill(0, count($data), '?'));
-            //var_dump($values);
-            //Log::info("column" . $values);
-
 
             $sql = "INSERT INTO {$table->table_name} ({$columns}) VALUES ({$values})";
             //var_dump($sql);
@@ -191,29 +187,7 @@ class ProcessRedisStreams extends Command
             $this->holdMessageForRetry($table, $data);
         }
     }
-
-    public function isDatabaseOnline($host)
-    {
-        // dump($db->connection_type);
-        // dump($db->host);
-        // dump($db->database_name);
-        // try {
-        //     $pdo = new PDO(
-        //         "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
-        //         $db->username,
-        //         $db->password,
-        //         [PDO::ATTR_TIMEOUT => 2] // Set timeout
-        //     );
-        //     return true;
-        // } catch (\Exception $th) {
-        //     return false;
-        // }
-
-        $pingResult = exec("ping -n 1 " . escapeshellarg($host), $output, $status);
-        return $status === 0;
-
-    }
-
+  
     public function isDatabaseServerReachable($host, $port): bool
     {
         $connection = @fsockopen($host, $port, $errno, $errstr, 2);

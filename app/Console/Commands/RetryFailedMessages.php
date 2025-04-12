@@ -7,6 +7,7 @@ use App\Models\DatabaseTable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Redis;
 use PDO;
+use Str;
 
 class RetryFailedMessages extends Command
 {
@@ -31,67 +32,82 @@ class RetryFailedMessages extends Command
     {
         $redisProcessStream = new ProcessRedisStreams();
         $tables = DatabaseTable::all();
+        $keys = Redis::keys('*retry*');
 
-        foreach ($tables as $table) {
-            $consumerGroup = $table->consumer_group;
-            $retryKey = "retry:{$consumerGroup}";
+        if (empty($keys)) {
+            dump("No retry keys found");
 
-            // Check if messages are waiting for this consumer group
-            while (Redis::llen($retryKey) > 0) {
+        } else {
+            foreach ($keys as $key) {
+                $consumerGroup = Str::replaceFirst('retry:', '', $key);
+                $table = DatabaseTable::where('consumer_group', $consumerGroup)->first();
+                if ($table) {
+                    dump("Retry key: {$key}");
+                    dump("Table: {$table->table_name}");
+                    dump("Table: {$table->database->name}");
+                    dump("host: {$table->database->host}");
+                    dump("port: {$table->database->port}");
+                    dump("Table: {$table->table_name}");
+                    dump("Consumer group: {$consumerGroup}");
 
-                if ($redisProcessStream->isDatabaseOnline($table->database->host)) {
-                    dump("Database {$table->database->name} is still down. Holding message...");
-                } else {
-                    dump("Database {$table->database->name} is up");
-                    $message = json_decode(Redis::lpop($retryKey), true);
-                    $targetTable = DatabaseTable::where('table_name', $message['table'])->first();
+                    if ($redisProcessStream->isDatabaseServerReachable($table->database->host, $table->database->port)) {
 
-                    try {
-                        $pdo = new PDO(
-                            "{$table->database->connection_type}:host={$table->database->host};dbname={$table->database->database_name}",
-                            $table->database->username,
-                            $table->database->password,
-                            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-                        );
+                        dump("Database {$table->database->name} is up");
+                        $raw = Redis::lrange($key, 0, -1);
 
-                        //var_dump($pdo);
+                        foreach ($raw as $data) {
+                            $decoded = json_decode($data, true);
 
-                        // Build insert query
-                        $columns = implode(', ', array_keys($message['table']));
-                        //var_dump($columns);
-                        //Log::info("column" . $columns);
-                        $values = implode(', ', array_fill(0, count($message['table']), '?'));
-                        //var_dump($values);
-                        //Log::info("column" . $values);
+                            $destinationTable = $decoded['table'];
+                            $data = $decoded['data'];
 
+                            try {
+                                $pdo = new PDO(
+                                    "{$table->database->connection_type}:host={$table->database->host};dbname={$table->database->database_name}",
+                                    $table->database->username,
+                                    $table->database->password,
+                                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                                );
 
-                        $sql = "INSERT INTO {$table->table_name} ({$columns}) VALUES ({$values})";
-                        //var_dump($sql);
-                        $stmt = $pdo->prepare($sql);
-                        //var_dump($stmt);
-                        if ($stmt->execute(array_values($message['table']))) {
-                            //var_dump("Insert success");
-                        } else {
-                            //var_dump($stmt->errorInfo());
+                                // Build insert query
+                                $columns = array_keys($data);
+                                //var_dump($columns);
+                                $placeholders = array_map(fn($col) => ":$col", $columns);                                //var_dump($values);
+
+                                dump($columns);
+                                dump($placeholders);
+
+                                $sql = "INSERT INTO `$destinationTable` (" . implode(',', $columns) . ") 
+                                    VALUES (" . implode(',', $placeholders) . ")";
+                                //var_dump($sql);
+                                $stmt = $pdo->prepare($sql);
+
+                                // Bind values
+                                foreach ($data as $key => $value) {
+                                    $stmt->bindValue(":$key", $value);
+                                }
+
+                                //var_dump($stmt);
+                                if ($stmt->execute()) {
+                                    var_dump("Insert success");
+                                } else {
+                                    var_dump($stmt->errorInfo());
+                                }
+
+                                return $pdo->lastInsertId();
+                            } catch (\Exception $th) {
+                                dump($th->getMessage() . $th->getLine());
+                                //throw $th;
+                            }
                         }
 
-                        return $pdo->lastInsertId();
-                    } catch (\Exception $th) {
-                        dump($th->getMessage());
-                        //throw $th;
+                    } else {
+                        dump("Database {$table->database->name} is still down. Holding message...");
+
                     }
+                } else {
+                    dump("No table found for consumer group: {$consumerGroup}");
                 }
-
-                // $message = json_decode(Redis::lpop($retryKey), true);
-                // $targetTable = DatabaseTable::where('table_name', $message['table'])->first();
-
-                // if ($targetTable) {
-                //     if (!$redisProcessStream->isDatabaseOnline($table->database->host)) {
-                //         dump("Database {$table->database->name} is still down. Holding message...");
-                //     } else {
-                //         $redisProcessStream->insertData($table, $message['data']);
-                //     }
-                // }
             }
         }
     }

@@ -53,7 +53,9 @@ class DatabaseConfigResource extends Resource
                         Forms\Components\TextInput::make('password')
                             ->password()
                             ->default('')
-                            ->dehydrated(true),
+                            ->dehydrated(true)
+                            ->required(),
+                        
                         // Forms\Components\TextInput::make('consumer_group')
                         //     ->default(fn() => 'group:' . Str::random(16))
                         //     ->disabled()
