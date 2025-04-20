@@ -164,19 +164,21 @@ class ProcessRedisStreams extends Command
                 [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             );
 
-            //var_dump($pdo);
 
             // Build insert query
             $columns = implode(', ', array_keys($data));
-           
+
             $values = implode(', ', array_fill(0, count($data), '?'));
 
             $sql = "INSERT INTO {$table->table_name} ({$columns}) VALUES ({$values})";
-            //var_dump($sql);
+
+            $pdo->beginTransaction();
+
             $stmt = $pdo->prepare($sql);
             //var_dump($stmt);
             if ($stmt->execute(array_values($data))) {
                 //var_dump("Insert success");
+                $pdo->commit();
             } else {
                 //var_dump($stmt->errorInfo());
             }
@@ -187,7 +189,7 @@ class ProcessRedisStreams extends Command
             $this->holdMessageForRetry($table, $data);
         }
     }
-  
+
     public function isDatabaseServerReachable($host, $port): bool
     {
         $connection = @fsockopen($host, $port, $errno, $errstr, 2);
@@ -205,25 +207,5 @@ class ProcessRedisStreams extends Command
         $retryKey = "retry:{$table->consumer_group}"; // Use consumer group as the key
         Redis::rpush($retryKey, json_encode(['table' => $table->table_name, 'data' => $data]));
         dump("Message held for retry in {$retryKey}");
-    }
-
-    public function retryFailedMessage()
-    {
-        $tables = DatabaseTable::all(); // Get all tables
-
-        foreach ($tables as $table) {
-            $consumerGroup = $table->consumer_group;
-            $retryKey = "retry:{$consumerGroup}";
-
-            // Check if messages are waiting for this consumer group
-            while (Redis::llen($retryKey) > 0) {
-                $message = json_decode(Redis::lpop($retryKey), true);
-                $targetTable = DatabaseTable::where('table_name', $message['table'])->first();
-
-                if ($targetTable) {
-                    $this->insertData($targetTable, $message['data']);
-                }
-            }
-        }
     }
 }
