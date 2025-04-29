@@ -2,8 +2,6 @@
 
 namespace App\Console\Commands;
 
-require 'vendor/autoload.php';
-
 use App\Models\DatabaseConfig;
 use App\Models\DatabaseTable;
 use Illuminate\Console\Command;
@@ -157,33 +155,36 @@ class ProcessRedisStreams extends Command
         $db = $table->database;
 
         if ($this->isDatabaseServerReachable($table->database->host, $table->database->port)) {
-            $pdo = new PDO(
-                "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
-                $db->username,
-                $db->password,
-                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-            );
+            try {
+                $pdo = new PDO(
+                    "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
+                    $db->username,
+                    $db->password,
+                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                );
 
+                // Build insert query
+                $columns = implode(', ', array_keys($data));
 
-            // Build insert query
-            $columns = implode(', ', array_keys($data));
+                $values = implode(', ', array_fill(0, count($data), '?'));
 
-            $values = implode(', ', array_fill(0, count($data), '?'));
+                $sql = "INSERT INTO {$table->table_name} ({$columns}) VALUES ({$values})";
 
-            $sql = "INSERT INTO {$table->table_name} ({$columns}) VALUES ({$values})";
+                $pdo->beginTransaction();
 
-            $pdo->beginTransaction();
+                $stmt = $pdo->prepare($sql);
+                //var_dump($stmt);
+                if ($stmt->execute(array_values($data))) {
+                    //var_dump("Insert success");
+                    $pdo->commit();
+                } else {
+                    //var_dump($stmt->errorInfo());
+                }
 
-            $stmt = $pdo->prepare($sql);
-            //var_dump($stmt);
-            if ($stmt->execute(array_values($data))) {
-                //var_dump("Insert success");
-                $pdo->commit();
-            } else {
-                //var_dump($stmt->errorInfo());
+                return $pdo->lastInsertId();
+            } catch (\Throwable $th) {
+                dump($th->getMessage());
             }
-
-            return $pdo->lastInsertId();
         } else {
             // Maybe retry later or log as 'down'
             $this->holdMessageForRetry($table, $data);

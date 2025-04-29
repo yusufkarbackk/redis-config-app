@@ -119,44 +119,44 @@ return [
     |
     */
 
-    // 'redis' => [
-
-    //     'client' => env('REDIS_CLIENT', 'phpredis'),
-    //     'default' => [
-    //         'url' => env('REDIS_URL'),
-    //         'host' => env('REDIS_HOST', '34.134.196.66'),
-    //         'username' => env('REDIS_USERNAME', 'yusuf'),
-    //         'password' => env('REDIS_PASSWORD', 'yusuf64'),
-    //         'port' => env('REDIS_PORT', '6380'),
-    //         'database' => env('REDIS_DB', '0'),
-    //     ],
-
-    //     'cache' => [
-    //         'url' => env('REDIS_URL'),
-    //         'host' => env('REDIS_HOST', '34.136.252.133'),
-    //         'username' => env('REDIS_USERNAME', 'yusuf'),
-    //         'password' => env('REDIS_PASSWORD', 'yusuf64'),
-    //         'port' => env('REDIS_PORT', '6380'),
-    //         'database' => env('REDIS_CACHE_DB', '1'),
-    //     ],
-
-    // ],
     'redis' => [
-        'client' => 'phpredis',
 
-        'master' => [
-            'host' => env('REDIS_MASTER_HOST', '127.0.0.1'),
-            'password' => env('REDIS_PASSWORD', null),
-            'port' => env('REDIS_PORT', 6379),
-            'database' => 0,
+        'client' => env('REDIS_CLIENT', 'phpredis'),
+        'default' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '10.23.6.89'),
+            'username' => env('REDIS_USERNAME', 'admin0'),
+            'password' => env('REDIS_PASSWORD', 'batiku232'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_DB', '0'),
         ],
 
-        'slave' => [
-            'host' => env('REDIS_SLAVE_HOST', '127.0.0.1'),
-            'password' => env('REDIS_PASSWORD', null),
-            'port' => env('REDIS_PORT', 6379),
-            'database' => 0,
-        ],
+        // 'cache' => [
+        //     'url' => env('REDIS_URL'),
+        //     'host' => env('REDIS_HOST', '34.136.252.133'),
+        //     'username' => env('REDIS_USERNAME', 'yusuf'),
+        //     'password' => env('REDIS_PASSWORD', 'yusuf64'),
+        //     'port' => env('REDIS_PORT', '6380'),
+        //     'database' => env('REDIS_CACHE_DB', '1'),
+        // ],
+
     ],
+    // 'redis' => [
+    //     'client' => 'phpredis',
+
+    //     'master' => [
+    //         'host' => env('REDIS_MASTER_HOST', '127.0.0.1'),
+    //         'password' => env('REDIS_PASSWORD', null),
+    //         'port' => env('REDIS_PORT', 6379),
+    //         'database' => 0,
+    //     ],
+
+    //     'slave' => [
+    //         'host' => env('REDIS_SLAVE_HOST', '127.0.0.1'),
+    //         'password' => env('REDIS_PASSWORD', null),
+    //         'port' => env('REDIS_PORT', 6379),
+    //         'database' => 0,
+    //     ],
+    // ],
 
 ];
