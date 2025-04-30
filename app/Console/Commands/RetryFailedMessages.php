@@ -33,6 +33,7 @@ class RetryFailedMessages extends Command
         $redisProcessStream = new ProcessRedisStreams();
         $tables = DatabaseTable::all();
         $keys = Redis::keys('*retry*');
+        \Log::info('RetryFailedRedisMessages command executed at ' . now());
 
         if (empty($keys)) {
             dump("No retry keys found");

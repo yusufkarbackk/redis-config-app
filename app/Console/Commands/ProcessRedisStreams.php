@@ -151,6 +151,7 @@ class ProcessRedisStreams extends Command
         dump($table->table_name);
         dump($table->database->host);
         dump($table->database->port);
+        dump($table->consumer_group);
 
         $db = $table->database;
 
