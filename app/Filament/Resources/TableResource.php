@@ -6,14 +6,8 @@ use App\Filament\Resources\TableResource\Pages;
 use App\Filament\Resources\TableResource\RelationManagers;
 use App\Models\Application;
 use App\Models\ApplicationField;
-use App\Models\DatabaseConfig;
 use App\Models\DatabaseTable;
-use App\Models\Table as TableModel;
-use Faker\Provider\ar_EG\Text;
-use Filament\Actions\CreateAction;
 use Filament\Forms;
-use Filament\Forms\Components\Hidden;
-use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -22,9 +16,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Illuminate\Support\Facades\Log;
+
 use Str;
 
 class TableResource extends Resource
@@ -55,11 +47,39 @@ class TableResource extends Resource
                                 // Clear application_field_id when application_id changes
                                 $set('fields.*.application_field_id', null);
                             }),
-                        Forms\Components\TextInput::make('consumer_group')
-                            ->default(fn() => 'group:' . Str::random(16))
-                            ->disabled()
-                            ->dehydrated(true)
-                            ->required(),
+                        Repeater::make('application')
+                            ->label('Subscribed Applications')
+                            ->relationship() // optional if using custom save logic
+                            ->schema([
+                                Select::make('application_id')
+                                    ->label('Application')
+                                    ->options(Application::all()->pluck('name', 'id'))
+                                    ->reactive()
+                                    ->required(),
+
+                                TextInput::make('consumer_group')
+                                    ->default(fn() => 'group:' . Str::random(16))
+                                    ->disabled()
+                                    ->dehydrated(true)
+                                    ->required(),
+
+                                // Optionally, you can allow field mappings here
+                                Repeater::make('fields')
+                                    ->label('Field Mappings')
+                                    ->schema([
+                                        Select::make('application_field_id')
+                                            ->label('App Field')
+                                            ->options(fn(callable $get) => ApplicationField::where('application_id', $get('../../application_id'))->pluck('name', 'id')),
+                                        TextInput::make('mapped_to')->label('Map To (Table Field)'),
+                                    ]),
+                            ])
+                            ->createItemButtonLabel('Add Application')
+
+                        // TextInput::make('consumer_group')
+                        //     ->default(fn() => 'group:' . Str::random(16))
+                        //     ->disabled()
+                        //     ->dehydrated(true)
+                        //     ->required(),
 
                         // Repeater::make('table_fields')
                         //     ->label('Fields')

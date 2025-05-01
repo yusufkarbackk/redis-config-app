@@ -44,6 +44,8 @@ class Application extends Model
     }
 
     public function tables() {
-        return $this->hasMany(DatabaseTable::class,);
+        return $this->belongsToMany(DatabaseTable::class, 'application_database_table')
+        ->withPivot('consumer_group')
+        ->withTimestamps();
     }
 }

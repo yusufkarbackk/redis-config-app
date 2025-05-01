@@ -18,7 +18,9 @@ class DatabaseTable extends Model
 
     public function application()
     {
-        return $this->belongsTo(Application::class, 'application_id', 'id');
+        return $this->belongsToMany(Application::class, 'application_database_table')
+        ->withPivot('consumer_group')
+        ->withTimestamps();
     }
 
     public function tableFields()
