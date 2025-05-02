@@ -17,7 +17,6 @@ class DatabaseConfig extends Model
         'database_name',
         'username',
         'password',
-        'consumer_group',
     ];
 
     protected $hidden = ['password'];
@@ -25,13 +24,6 @@ class DatabaseConfig extends Model
     protected static function boot()
     {
         parent::boot();
-
-        // Auto-generate consumer group if not set
-        static::creating(function ($config) {
-            if (!$config->consumer_group) {
-                $config->consumer_group = 'group:' . str()->random(16);
-            }
-        });
     }
 
     public function tables()

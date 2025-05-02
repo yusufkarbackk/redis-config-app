@@ -12,7 +12,8 @@ class Application extends Model
 
     protected $fillable = ['name', 'description', 'api_key'];
 
-    protected static function boot() {
+    protected static function boot()
+    {
         parent::boot();
 
         static::creating(function ($application) {
@@ -39,13 +40,15 @@ class Application extends Model
         });
     }
 
-    public function applicationFields() {
+    public function applicationFields()
+    {
         return $this->hasMany(ApplicationField::class);
     }
 
-    public function tables() {
-        return $this->belongsToMany(DatabaseTable::class, 'application_database_table')
-        ->withPivot('consumer_group')
-        ->withTimestamps();
+    public function tables()
+    {
+        return $this->belongsToMany(DatabaseTable::class, 'application_table_subscriptions')
+            ->withPivot('consumer_group')
+            ->withTimestamps();
     }
 }

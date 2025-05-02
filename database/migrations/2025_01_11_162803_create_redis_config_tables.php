@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -31,24 +30,37 @@ return new class extends Migration
         Schema::create('database_configs', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->enum('connection_type', ['mysql', 'postgres']);
+            $table->enum('connection_type', ['mysql', 'pgsql']);
             $table->string('host');
             $table->integer('port');
             $table->string('database_name');
             $table->string('username');
-            $table->string('password');
-            $table->string('consumer_group')->unique();
+            $table->string('password')->nullable()->default('');
             $table->timestamps();
         });
 
-        Schema::create('database_field_subscriptions', function (Blueprint $table) {
+        Schema::create('logs', function (Blueprint $table) {
+            $table->string('source'); // Sumber data
+            $table->string('destination'); // Tujuan data
+            $table->json('data_sent'); // Data yang dikirim
+            $table->json('data_received')->nullable(); // Data yang diterima
+            $table->timestamp('sent_at')->nullable(); // Waktu pengiriman
+            $table->timestamp('received_at')->nullable(); // Waktu diterima
+        });
+
+        Schema::create('database_tables', function (Blueprint $table) {
             $table->id();
             $table->foreignId('database_config_id')->constrained()->onDelete('cascade');
-            $table->foreignId('application_field_id')->constrained()->onDelete('cascade');
+            $table->string('table_name');
             $table->timestamps();
+        });
 
-            // Prevent duplicate subscriptions
-            $table->unique(['database_config_id', 'application_field_id'], 'unique_subscription');
+        Schema::create('application_table_subscriptions', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('application_id')->constrained()->onDelete('cascade');
+            $table->foreignId('database_table_id')->constrained('database_tables')->onDelete('cascade');
+            $table->string('consumer_group');
+            $table->timestamps();
         });
     }
 
@@ -57,8 +69,11 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('database_field_subscriptions');
         Schema::dropIfExists('application_fields');
         Schema::dropIfExists('database_configs');
-        Schema::dropIfExists('applications');    }
+        Schema::dropIfExists('applications');
+        Schema::dropIfExists('logs');
+        Schema::dropIfExists('database_tables');
+        Schema::dropIfExists('application_table_subscriptions');
+    }
 };

@@ -37,16 +37,8 @@ class TableResource extends Resource
                             ->relationship('database', 'name')
                             ->required(),
                         TextInput::make('table_name')
-                            ->label('Table Name'),
-
-                        Select::make('application_id')
-                            ->label('Application')
-                            ->relationship('application', 'name')
-                            ->reactive()
-                            ->afterStateUpdated(function (callable $set) {
-                                // Clear application_field_id when application_id changes
-                                $set('fields.*.application_field_id', null);
-                            }),
+                            ->label('Table Name')
+                            ->required(),
                         Repeater::make('application')
                             ->label('Subscribed Applications')
                             ->relationship() // optional if using custom save logic

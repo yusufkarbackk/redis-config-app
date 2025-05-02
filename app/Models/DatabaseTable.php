@@ -9,7 +9,7 @@ class DatabaseTable extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['database_config_id', 'table_name', 'application_id', 'consumer group'];
+    protected $fillable = ['database_config_id', 'table_name'];
 
     public function database()
     {
@@ -18,9 +18,9 @@ class DatabaseTable extends Model
 
     public function application()
     {
-        return $this->belongsToMany(Application::class, 'application_database_table')
-        ->withPivot('consumer_group')
-        ->withTimestamps();
+        return $this->belongsToMany(Application::class, 'application_table_subscriptions')
+            ->withPivot('consumer_group')
+            ->withTimestamps();
     }
 
     public function tableFields()

@@ -54,17 +54,8 @@ class DatabaseConfigResource extends Resource
                             ->password()
                             ->default('')
                             ->dehydrated(true)
-                            ->required(),
-                        
-                        // Forms\Components\TextInput::make('consumer_group')
-                        //     ->default(fn() => 'group:' . Str::random(16))
-                        //     ->disabled()
-                        //     ->dehydrated(true)
-                        //     ->required(),
                     ])
                     ->columns(2)
-                    //->successRedirectUrl('/admin/database-configs')
-
             ]);
     }
 
