@@ -20,7 +20,7 @@ return new class extends Migration {
 
         Schema::create('application_fields', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('application_id')->constrained()->onDelete('cascade');
+            $table->foreignId('application_id')->constrained('applications')->onDelete('cascade');
             $table->string('name');
             $table->enum('data_type', ['string', 'number', 'boolean', 'json']);
             $table->text('description')->nullable();
@@ -50,14 +50,14 @@ return new class extends Migration {
 
         Schema::create('database_tables', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('database_config_id')->constrained()->onDelete('cascade');
+            $table->foreignId('database_config_id')->constrained('database_configs')->onDelete('cascade');
             $table->string('table_name');
             $table->timestamps();
         });
 
         Schema::create('application_table_subscriptions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('application_id')->constrained()->onDelete('cascade');
+            $table->foreignId('application_id')->constrained('applications')->onDelete('cascade');
             $table->foreignId('database_table_id')->constrained('database_tables')->onDelete('cascade');
             $table->string('consumer_group');
             $table->timestamps();

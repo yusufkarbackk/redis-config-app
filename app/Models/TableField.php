@@ -9,7 +9,7 @@ class TableField extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['table_id', 'field_name', 'field_type', 'application_field_id', 'application_id'];
+    protected $fillable = ['table_id', 'name', 'data_type'];
 
     public function databaseTable()
     {

@@ -11,9 +11,9 @@ class DatabaseFieldSubscription extends Model
 
     protected $table = 'database_field_subscriptions'; // Specify the table name if it's non-standard
     protected $fillable = [
-        'database_config_id',
+        'application_table_subscription_id',
         'application_field_id',
-        'table_id',
+        'mapped_to',
     ];
 
     // Relationships
@@ -30,5 +30,10 @@ class DatabaseFieldSubscription extends Model
     public function table()
     {
         return $this->belongsTo(DatabaseTable::class, 'table_id');
+    }
+
+    public function applicationTableSubscription()
+    {
+        return $this->belongsTo(ApplicationTableSubscription::class);
     }
 }

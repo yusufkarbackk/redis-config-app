@@ -16,7 +16,7 @@ class DatabaseTable extends Model
         return $this->belongsTo(DatabaseConfig::class, 'database_config_id');
     }
 
-    public function application()
+    public function applications()
     {
         return $this->belongsToMany(Application::class, 'application_table_subscriptions')
             ->withPivot('consumer_group')
@@ -26,6 +26,11 @@ class DatabaseTable extends Model
     public function tableFields()
     {
         return $this->hasMany(TableField::class, 'table_id', 'id');
+    }
+
+    public function applicationSubscriptions()
+    {
+        return $this->hasMany(ApplicationTableSubscription::class);
     }
 
     // public function fields()
