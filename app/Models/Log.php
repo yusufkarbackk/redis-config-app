@@ -9,7 +9,7 @@ class Log extends Model
 {
     use HasFactory;
     protected $fillable = [
-        'source', 
+        'source',
         'destination',
         'data_sent',
         'data_received',
@@ -17,6 +17,8 @@ class Log extends Model
         'received_at '
     ];
 
-
+    protected $casts = [
+        'sent_at' => 'datetime',
+    ];
 
 }

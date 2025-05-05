@@ -16,7 +16,6 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-
 use Str;
 
 class TableResource extends Resource

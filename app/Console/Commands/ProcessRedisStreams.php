@@ -6,6 +6,7 @@ use App\Models\ApplicationTableSubscription;
 use App\Models\DatabaseFieldSubscription;
 use App\Models\DatabaseTable;
 use App\Models\ApplicationField;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Redis;
 use Predis\Client as PredisClient;
@@ -63,16 +64,9 @@ class ProcessRedisStreams extends Command
                         }
 
                         if (!empty($mappedData)) {
-                            $this->insertData($table, $db, $mappedData);
+                            $this->insertData($table, $db, $mappedData, $groupName, $application->name, $data['enqueued_at']);
                             Redis::xack($streamKey, $groupName, [$messageId]);
-                            \App\Models\Log::create([
-                                'source' => $subscription->application->name,
-                                'destination' => $table->table_name,
-                                'data_sent' => $data,              // the raw $data you sent into the query
-                                'data_received' => $mappedData,        // the final array you inserted
-                                'sent_at' => now(),              // or the timestamp from Redis message if you embedded it
-                                'received_at' => now(),
-                            ]);
+                            
                             $this->info("✔ Inserted & Acknowledged [$messageId] into {$table->table_name}");
                         } else {
                             $this->warn("⚠ No mappable fields found for [$messageId]");
@@ -87,10 +81,10 @@ class ProcessRedisStreams extends Command
         }
     }
 
-    protected function insertData($table, $db, $data)
+    protected function insertData($table, $db, $data, $groupName, $source, $sent_at)
     {
         if (!$this->isDatabaseServerReachable($db->host, $db->port)) {
-            $this->holdMessageForRetry($table->table_name, $data, $table->consumer_group);
+            $this->holdMessageForRetry($table->table_name, $data, $groupName);
             return;
         }
 
@@ -111,6 +105,17 @@ class ProcessRedisStreams extends Command
 
             if ($stmt->execute(array_values($data))) {
                 $pdo->commit();
+                dump($data);
+                dump($placeholders);
+                $formatedSentAt = Carbon::parse($sent_at);
+                \App\Models\Log::create([
+                    'source' => $source,
+                    'destination' => $table->table_name,
+                    'data_sent' => json_encode($data),              // the raw $data you sent into the query
+                    'data_received' => json_decode($placeholders),        // the final array you inserted
+                    'sent_at' => $formatedSentAt,              // or the timestamp from Redis message if you embedded it
+                    'received_at' => now(),
+                ]);
             } else {
                 $pdo->rollBack();
             }
