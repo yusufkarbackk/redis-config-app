@@ -2,212 +2,134 @@
 
 namespace App\Console\Commands;
 
-use App\Models\DatabaseConfig;
+use App\Models\ApplicationTableSubscription;
+use App\Models\DatabaseFieldSubscription;
 use App\Models\DatabaseTable;
+use App\Models\ApplicationField;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Redis;
-use Illuminate\Support\Facades\Log;
-use App\Models\Log as appLog;
-
 use Predis\Client as PredisClient;
+use Illuminate\Support\Facades\Log;
 use PDO;
-
 class ProcessRedisStreams extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
-    protected $signature = 'redis:process-redis-streams';
+    protected $signature = 'redis:listen-data-streams';
+    protected $description = 'Listen to Redis stream and process data';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Command description';
-    //protected $log = new appLog();
-    /**
-     * Execute the console command.
-     */
     public function handle()
     {
-        $logData = [];
-        //$log = new appLog();
-        $this->info('Starting Redis stream processing...');
+        $this->info('Listening to Redis stream...');
 
-        while (true) {
-            try {
-                // Get all tables with relationships
-                $tables = DatabaseTable::with('tableFields', 'application', 'database')->get();
-                // Log::info($tables->toArray());
-                foreach ($tables as $table) {
+        try {
+            while (true) {
+                $subscriptions = ApplicationTableSubscription::with([
+                    'application',
+                    'databaseTable.database',
+                    'fieldMappings.applicationField'
+                ])->get();
 
+                foreach ($subscriptions as $subscription) {
+                    $application = $subscription->application;
+                    $table = $subscription->databaseTable;
                     $db = $table->database;
-                    $application = $table->application;
-                    $dataToLog = [
-                        'source' => $application->name,
-                        'destination' => $table->database->name,
-                    ];
+                    $streamKey = "app:{$application->api_key}:stream";
+                    $groupName = $subscription->consumer_group;
 
                     try {
-                        $streamKey = "app:{$application->api_key}:stream";
-                        $groupName = $table->consumer_group;
-
-                        // Create consumer group if not exists
-                        try {
-                            Redis::command('xgroup', ['CREATE', $streamKey, $groupName, '$', 'MKSTREAM']);
-                        } catch (\Exception $e) {
-                            // Group may already exist - that's fine
-                        }
-
-                        // Read new messages using XREADGROUP
-                        $messages = Redis::xreadgroup(
-                            $groupName,
-                            "consumer:{$db->id}",
-                            [$streamKey => '>'],
-                            1,
-                            5000
-                        );
-
-                        if (!$messages) {
-                            continue;
-                        }
-                        dump($messages[$streamKey]);
-                        $dataToLog['data_sent'] = json_encode($messages[$streamKey]);
-                        $dataToLog['sent_at'] = now();
-
-                        $this->processMessages($messages, $table, $streamKey, $groupName, $dataToLog);
-                    } catch (\Throwable $th) {
-
-                        sleep(1);
-                    }
-                }
-            } catch (\Throwable $th) {
-
-                sleep(1);
-            }
-        }
-    }
-
-    private function processMessages($messages, $table, $streamKey, $groupName, $dataToLog)
-    {
-        $log = new appLog();
-        var_dump("process message");
-
-        foreach ($messages[$streamKey] ?? [] as $messageId => $data) {
-            try {
-                if (!$table->tableFields) {
-
-                    continue;
-                }
-
-                // Get fields this table wants from this app
-                $wantedFields = $table->tableFields
-                    ->filter(function ($field) use ($table) {
-                        return $field->application_id == $table->application_id;
-                    })
-                    ->pluck('field_name')
-                    ->toArray();
-
-                //var_dump($wantedFields);
-
-                if (empty($wantedFields)) {
-                    continue;
-                }
-
-                $filteredData = array_intersect_key($data, array_flip($wantedFields));
-                $dataToLog['data_received'] = json_encode($filteredData);
-                //var_dump($filteredData);
-
-                if (!empty($filteredData)) {
-                    $this->insertData($table, $filteredData);
-                    $dataToLog['received_at'] = now();
-                    //dump($dataToLog);
-                    try {
-                        \App\Models\Log::create($dataToLog);
-                    } catch (\Throwable $th) {
-                        //throw $th;
-                        dump($th->getMessage());
+                        Redis::command('xgroup', ['CREATE', $streamKey, $groupName, '$', 'MKSTREAM']);
+                    } catch (\Exception $e) {
+                        // Group may already exist — ignore
                     }
 
-                    // Acknowledge message
-                    Redis::command('xack', [$streamKey, $groupName, [$messageId]]);
+                    $messages = Redis::xreadgroup(
+                        $groupName,
+                        "consumer:{$subscription->id}",
+                        [$streamKey => '>'],
+                        1,
+                        5000
+                    );
 
-                    dump("Processed message {$messageId} for table {$table->table_name}");
+                    if (!$messages)
+                        continue;
+
+                    foreach ($messages[$streamKey] ?? [] as $messageId => $data) {
+                        $mappedData = [];
+
+                        foreach ($subscription->fieldMappings as $mapping) {
+                            $appField = $mapping->applicationField->name;
+                            if (isset($data[$appField])) {
+                                $mappedData[$mapping->mapped_to] = $data[$appField];
+                            }
+                        }
+
+                        if (!empty($mappedData)) {
+                            $this->insertData($table, $db, $mappedData);
+                            Redis::xack($streamKey, $groupName, [$messageId]);
+                            \App\Models\Log::create([
+                                'source' => $subscription->application->name,
+                                'destination' => $table->table_name,
+                                'data_sent' => $data,              // the raw $data you sent into the query
+                                'data_received' => $mappedData,        // the final array you inserted
+                                'sent_at' => now(),              // or the timestamp from Redis message if you embedded it
+                                'received_at' => now(),
+                            ]);
+                            $this->info("✔ Inserted & Acknowledged [$messageId] into {$table->table_name}");
+                        } else {
+                            $this->warn("⚠ No mappable fields found for [$messageId]");
+                        }
+                    }
                 }
-            } catch (\Exception $e) {
 
+                usleep(500_000); // 0.5 sec delay
             }
+        } catch (\Throwable $th) {
+            $this->error("Error on line {$th->getLine()}: {$th->getMessage()} {$th->getFile()}");
         }
     }
 
-    public function insertData($table, $data)
+    protected function insertData($table, $db, $data)
     {
-        //var_dump("insert data");
+        if (!$this->isDatabaseServerReachable($db->host, $db->port)) {
+            $this->holdMessageForRetry($table->table_name, $data, $table->consumer_group);
+            return;
+        }
 
-        //var_dump($data);
-        dump($table->table_name);
-        dump($table->database->host);
-        dump($table->database->port);
-        dump($table->consumer_group);
+        try {
+            $pdo = new PDO(
+                "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
+                $db->username,
+                $db->password,
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            );
 
-        $db = $table->database;
+            $columns = implode(', ', array_keys($data));
+            $placeholders = implode(', ', array_fill(0, count($data), '?'));
+            $sql = "INSERT INTO {$table->table_name} ($columns) VALUES ($placeholders)";
 
-        if ($this->isDatabaseServerReachable($table->database->host, $table->database->port)) {
-            try {
-                $pdo = new PDO(
-                    "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
-                    $db->username,
-                    $db->password,
-                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-                );
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare($sql);
 
-                // Build insert query
-                $columns = implode(', ', array_keys($data));
-
-                $values = implode(', ', array_fill(0, count($data), '?'));
-
-                $sql = "INSERT INTO {$table->table_name} ({$columns}) VALUES ({$values})";
-
-                $pdo->beginTransaction();
-
-                $stmt = $pdo->prepare($sql);
-                //var_dump($stmt);
-                if ($stmt->execute(array_values($data))) {
-                    //var_dump("Insert success");
-                    $pdo->commit();
-                } else {
-                    //var_dump($stmt->errorInfo());
-                }
-
-                return $pdo->lastInsertId();
-            } catch (\Throwable $th) {
-                dump($th->getMessage());
+            if ($stmt->execute(array_values($data))) {
+                $pdo->commit();
+            } else {
+                $pdo->rollBack();
             }
-        } else {
-            // Maybe retry later or log as 'down'
-            $this->holdMessageForRetry($table, $data);
+
+        } catch (\Throwable $e) {
+            dump($e->getMessage());
         }
     }
 
-    public function isDatabaseServerReachable($host, $port): bool
+    protected function isDatabaseServerReachable($host, $port): bool
     {
         $connection = @fsockopen($host, $port, $errno, $errstr, 2);
-        if ($connection) {
-            fclose($connection);
-            dump("Database server is reachable");
-            return true;
-        }
-        dump("Database server is not reachable");
-        return false;
+        return (bool) $connection;
     }
 
-    public function holdMessageForRetry($table, $data)
+    protected function holdMessageForRetry($tableName, $data, $group)
     {
-        $retryKey = "retry:{$table->consumer_group}"; // Use consumer group as the key
-        Redis::rpush($retryKey, json_encode(['table' => $table->table_name, 'data' => $data]));
-        dump("Message held for retry in {$retryKey}");
+        $retryKey = "retry:{$group}";
+        Redis::rpush($retryKey, json_encode(['table' => $tableName, 'data' => $data]));
+        $this->warn("🔁 Message held for retry: $retryKey");
     }
 }
