@@ -53,7 +53,7 @@ class ProcessRedisStreams extends Command
                     if (!$messages)
                         continue;
 
-                    foreach ($messages[$streamKey] ?? [] as $messageId => $data) {
+                        foreach ($messages[$streamKey] ?? [] as $messageId => $data) {
                         $mappedData = [];
 
                         foreach ($subscription->fieldMappings as $mapping) {
@@ -64,10 +64,8 @@ class ProcessRedisStreams extends Command
                         }
 
                         if (!empty($mappedData)) {
-                            $this->insertData($table, $db, $mappedData, $groupName, $application->name, $data['enqueued_at']);
-                            Redis::xack($streamKey, $groupName, [$messageId]);
-                            
-                            $this->info("✔ Inserted & Acknowledged [$messageId] into {$table->table_name}");
+                            $this->insertData($table, $db, $mappedData, $groupName, $application->name, $messages[$streamKey][$messageId]);
+                            Redis::xack($streamKey, $groupName, [$messageId]);                                                                      
                         } else {
                             $this->warn("⚠ No mappable fields found for [$messageId]");
                         }
@@ -81,10 +79,11 @@ class ProcessRedisStreams extends Command
         }
     }
 
-    protected function insertData($table, $db, $data, $groupName, $source, $sent_at)
+    protected function insertData($table, $db, $data, $groupName, $source, $rawData)
     {
         if (!$this->isDatabaseServerReachable($db->host, $db->port)) {
-            $this->holdMessageForRetry($table->table_name, $data, $groupName);
+            $this->holdMessageForRetry($table->table_name, $data, $groupName, $source, $rawData);
+            dump("database is not reachable");
             return;
         }
 
@@ -105,16 +104,17 @@ class ProcessRedisStreams extends Command
 
             if ($stmt->execute(array_values($data))) {
                 $pdo->commit();
-                dump($data);
-                dump($placeholders);
-                $formatedSentAt = Carbon::parse($sent_at);
+               
+                $formatedSentAt = Carbon::parse($rawData['enqueued_at']);
+                unset($rawData['enqueued_at']);
                 \App\Models\Log::create([
                     'source' => $source,
                     'destination' => $table->table_name,
-                    'data_sent' => json_encode($data),              // the raw $data you sent into the query
-                    'data_received' => json_decode($placeholders),        // the final array you inserted
-                    'sent_at' => $formatedSentAt,              // or the timestamp from Redis message if you embedded it
+                    'data_sent' => json_encode($rawData),              
+                    'data_received' => json_encode($data),        
+                    'sent_at' => $formatedSentAt, 
                     'received_at' => now(),
+                    'message' => 'data sent from redis stream'
                 ]);
             } else {
                 $pdo->rollBack();
@@ -131,10 +131,21 @@ class ProcessRedisStreams extends Command
         return (bool) $connection;
     }
 
-    protected function holdMessageForRetry($tableName, $data, $group)
+    protected function holdMessageForRetry($tableName, $data, $group, $source, $rawData)
     {
         $retryKey = "retry:{$group}";
         Redis::rpush($retryKey, json_encode(['table' => $tableName, 'data' => $data]));
         $this->warn("🔁 Message held for retry: $retryKey");
+        $formatedSentAt = Carbon::parse($rawData['enqueued_at']);
+
+        \App\Models\Log::create([
+            'source' => $source,
+            'destination' => $tableName,
+            'data_sent' => json_encode($rawData),              // the raw $data you sent into the query
+            'data_received' => [],        // the final array you inserted
+            'sent_at' => $formatedSentAt,              // or the timestamp from Redis message if you embedded it
+            'received_at' => now(),
+            'Database not reachable, Hold on retry'
+        ]);
     }
 }

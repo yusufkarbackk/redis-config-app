@@ -2,114 +2,127 @@
 
 namespace App\Console\Commands;
 
-use App\Models\DatabaseConfig;
-use App\Models\DatabaseTable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use PDO;
-use Str;
+use App\Models\ApplicationTableSubscription;
 
 class RetryFailedMessages extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'redis:retry-failed-messages';
+    protected $description = 'Retry messages that failed to insert into downstream databases';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Command description';
-
-    /**
-     * Execute the console command.
-     */
     public function handle()
     {
-        $redisProcessStream = new ProcessRedisStreams();
-        $tables = DatabaseTable::all();
-        $keys = Redis::keys('*retry*');
-        \Log::info('RetryFailedRedisMessages command executed at ' . now());
+        Log::info('RetryFailedMessages started at ' . now());
 
-        if (empty($keys)) {
-            dump("No retry keys found");
+        // Load all subscriptions (app ↔ table)
+        $subscriptions = ApplicationTableSubscription::with([
+            'databaseTable.database',
+            'application.name',
+        ])->get();
+        foreach ($subscriptions as $sub) {
+            $group = $sub->consumer_group;
+            $retryKey = "retry:{$group}";
+            $source = $sub->application->name;
+            $rawData = $sub->fieldMappings->pluck('applicationField.name')->toArray();
+            
 
-        } else {
-            foreach ($keys as $key) {
-                $consumerGroup = Str::replaceFirst('retry:', '', $key);
-                $table = DatabaseTable::where('consumer_group', $consumerGroup)->first();
-                if ($table) {
-                    dump("Retry key: {$key}");
-                    dump("Table: {$table->table_name}");
-                    dump("Table: {$table->database->name}");
-                    dump("host: {$table->database->host}");
-                    dump("port: {$table->database->port}");
-                    dump("Table: {$table->table_name}");
-                    dump("Consumer group: {$consumerGroup}");
+            // Grab all held entries for this group
+            $entries = Redis::lrange($retryKey, 0, -1);
+            if (empty($entries)) {
+                continue;
+            }
 
-                    if ($redisProcessStream->isDatabaseServerReachable($table->database->host, $table->database->port)) {
+            $db = $sub->databaseTable->database;
+            $table = $sub->databaseTable->table_name;
 
-                        dump("Database {$table->database->name} is up");
-                        $raw = Redis::lrange($key, 0, -1);
+            // Is the DB back up?
+            if (!$this->isDatabaseServerReachable($db->host, $db->port)) {
+                $this->warn("↻ {$db->name} still down, skipping retry for group “{$group}”");
+                continue;
+            }
 
-                        foreach ($raw as $data) {
-                            $decoded = json_decode($data, true);
+            // Open PDO once per subscription
+            $pdo = $this->makePdo($db);
 
-                            $destinationTable = $decoded['table'];
-                            $data = $decoded['data'];
+            foreach ($entries as $json) {
+                $payload = json_decode($json, true);
+                $data = $payload['data'] ?? [];
 
-                            try {
-                                $pdo = new PDO(
-                                    "{$table->database->connection_type}:host={$table->database->host};dbname={$table->database->database_name}",
-                                    $table->database->username,
-                                    $table->database->password,
-                                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-                                );
+                if (empty($data)) {
+                    // nothing to insert, drop it
+                    Redis::lrem($retryKey, 0, $json);
+                    continue;
+                }
 
-                                // Build insert query
-                                $columns = array_keys($data);
-                                //var_dump($columns);
-                                $placeholders = array_map(fn($col) => ":$col", $columns);                                //var_dump($values);
+                // Build INSERT query
+                $cols = array_keys($data);
+                $placeholders = array_map(fn($c) => ":{$c}", $cols);
+                $sql = sprintf(
+                    'INSERT INTO `%s` (%s) VALUES (%s)',
+                    $table,
+                    implode(',', $cols),
+                    implode(',', $placeholders),
+                );
 
-                                dump($columns);
-                                dump($placeholders);
-
-                                $sql = "INSERT INTO `$destinationTable` (" . implode(',', $columns) . ") 
-                                    VALUES (" . implode(',', $placeholders) . ")";
-                                //var_dump($sql);
-                                $stmt = $pdo->prepare($sql);
-
-                                // Bind values
-                                foreach ($data as $key => $value) {
-                                    $stmt->bindValue(":$key", $value);
-                                }
-
-                                //var_dump($stmt);
-                                if ($stmt->execute()) {
-                                    var_dump("Insert success");
-                                } else {
-                                    var_dump($stmt->errorInfo());
-                                }
-
-                                return $pdo->lastInsertId();
-                            } catch (\Exception $th) {
-                                dump($th->getMessage() . $th->getLine());
-                                //throw $th;
-                            }
-                        }
-
-                    } else {
-                        dump("Database {$table->database->name} is still down. Holding message...");
-
+                try {
+                    $pdo->beginTransaction();
+                    $stmt = $pdo->prepare($sql);
+                    foreach ($data as $col => $val) {
+                        $stmt->bindValue(":{$col}", $val);
                     }
-                } else {
-                    dump("No table found for consumer group: {$consumerGroup}");
+                    $stmt->execute();
+                    $pdo->commit();
+
+                    \App\Models\Log::create([
+                        'source' => $source,
+                        'destination' => $table,
+                        'data_sent' => $data,              // the raw $data you sent into the query
+                        'data_received' => $data,        // the final array you inserted
+                        'sent_at' => now(),              // or the timestamp from Redis message if you embedded it
+                        'received_at' => now(),
+                        'message' => 'data sent from retry'
+                    ]);
+
+                    // on success, remove this entry
+                    Redis::lrem($retryKey, 0, $json);
+                    $this->info("✔ Retried and inserted into {$table}");
+                } catch (\Throwable $e) {
+                    $pdo->rollBack();
+                    $this->error("✖ Retry failed for {$table}: " . $e->getMessage());
                 }
             }
+
+            // If we've cleared all entries, delete the list key entirely
+            if (empty(Redis::lrange($retryKey, 0, -1))) {
+                Redis::del($retryKey);
+                $this->info("🗑️ Cleared retry list for group “{$group}”");
+            }
         }
+
+        Log::info('RetryFailedMessages finished at ' . now());
+    }
+
+    protected function isDatabaseServerReachable(string $host, int $port): bool
+    {
+        $conn = @fsockopen($host, $port, $errno, $errstr, 2);
+        if ($conn) {
+            fclose($conn);
+            return true;
+        }
+        return false;
+    }
+
+    protected function makePdo($db): PDO
+    {
+        return new PDO(
+            "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
+            $db->username,
+            $db->password,
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
     }
 }

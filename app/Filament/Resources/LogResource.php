@@ -50,7 +50,12 @@ class LogResource extends Resource
                 BadgeColumn::make('source')
                     ->colors(['primary']),
                 BadgeColumn::make('destination')
-                    ->colors(['success']),
+                    ->colors(['primary']),
+                BadgeColumn::make('status')
+                    ->colors([
+                        'success' => fn($state) => $state === 'OK',
+                        'danger' => fn($state) => $state === 'Failed',
+                    ]),
                 TextColumn::make('data_sent')
                     ->label('Data Sent')
                     ->limit(50) // Show only first 50 characters
