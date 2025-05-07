@@ -87,7 +87,6 @@ class TableResource extends Resource
             ->columns([
                 TextColumn::make('id'),
                 TextColumn::make('table_name'),
-                TextColumn::make(name: 'application.name'),
                 TextColumn::make(name: 'database.name'),
             ])
             ->filters([
