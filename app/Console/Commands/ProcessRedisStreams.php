@@ -3,14 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Models\ApplicationTableSubscription;
-use App\Models\DatabaseFieldSubscription;
-use App\Models\DatabaseTable;
-use App\Models\ApplicationField;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Redis;
-use Predis\Client as PredisClient;
-use Illuminate\Support\Facades\Log;
 use PDO;
 class ProcessRedisStreams extends Command
 {
