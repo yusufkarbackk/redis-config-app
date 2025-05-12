@@ -104,16 +104,19 @@ class RedisStreamQueue extends Queue implements QueueContract
         );
 
         $entries = $messages[$this->stream] ?? [];
-
-        foreach ($entries as $id => $payload) {
-            // 1) Dispatch your real Laravel Job that does the insert & log
-            ProcessStreamMessage::dispatch($id, $payload);
-
-            // 2) Immediately ack the stream entry (so it doesn’t get redelivered)
+        dump($entries);
+        foreach ($entries as $id => $fields) {
+            // 1) Hand it off to a normal Laravel queue job,
+            //    forcing it onto the "redis" connection:
+            ProcessStreamMessage::dispatch($id, $fields)
+                ->onConnection('redis')
+                ->onQueue(config('default')); // or a named queue
+            dump($fields);
+            // 2) Acknowledge it in the stream so it won't be re-delivered
             $this->redis->xack($this->stream, $this->group, [$id]);
         }
 
-        // return null because we've handed off the work to ProcessStreamMessage
+        // We handled dispatch & ack; nothing else for Laravel to do here
         return null;
     }
 

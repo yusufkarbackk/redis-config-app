@@ -129,6 +129,7 @@ return [
             'password' => env('REDIS_PASSWORD', 'batiku232'),
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_DB', '0'),
+            'read_timeout'   => -1,
         ],
 
         // 'cache' => [

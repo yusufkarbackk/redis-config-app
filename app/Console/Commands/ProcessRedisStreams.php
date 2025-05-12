@@ -23,14 +23,15 @@ class ProcessRedisStreams extends Command
                     'databaseTable.database',
                     'fieldMappings.applicationField'
                 ])->get();
-
+                dump($table = $subscription->databaseTable);
+                dump($db = $table->database);
                 foreach ($subscriptions as $subscription) {
                     $application = $subscription->application;
                     $table = $subscription->databaseTable;
                     $db = $table->database;
                     $streamKey = "app:{$application->api_key}:stream";
                     $groupName = $subscription->consumer_group;
-
+                    dump($db);
                     try {
                         Redis::command('xgroup', ['CREATE', $streamKey, $groupName, '$', 'MKSTREAM']);
                     } catch (\Exception $e) {
