@@ -3,14 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Models\ApplicationTableSubscription;
-use App\Models\DatabaseFieldSubscription;
-use App\Models\DatabaseTable;
-use App\Models\ApplicationField;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Redis;
-use Predis\Client as PredisClient;
-use Illuminate\Support\Facades\Log;
 use PDO;
 class ProcessRedisStreams extends Command
 {
@@ -28,14 +23,15 @@ class ProcessRedisStreams extends Command
                     'databaseTable.database',
                     'fieldMappings.applicationField'
                 ])->get();
-
+                dump($table = $subscription->databaseTable);
+                dump($db = $table->database);
                 foreach ($subscriptions as $subscription) {
                     $application = $subscription->application;
                     $table = $subscription->databaseTable;
                     $db = $table->database;
                     $streamKey = "app:{$application->api_key}:stream";
                     $groupName = $subscription->consumer_group;
-
+                    dump($db);
                     try {
                         Redis::command('xgroup', ['CREATE', $streamKey, $groupName, '$', 'MKSTREAM']);
                     } catch (\Exception $e) {

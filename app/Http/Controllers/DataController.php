@@ -21,18 +21,18 @@ class DataController extends Controller
         $application = Application::where('api_key', $apiKey)->select(['name', 'api_key', 'id'])->firstOrFail();
         $validFields = $application->applicationFields()->pluck('name')->toArray();
 
-        $id = $application->getAttributes()['api_key'];
-        $streamKey = "app:{$id}:stream";
+        $payload = $request->only($validFields);
 
-        $filteredData = $request->only($validFields);
-        $filteredData['enqueued_at'] = Carbon::now()->toIso8601String();
+        $payload['api_key'] = $application->api_key;
+        $payload['enqueued_at'] = Carbon::now()->toIso8601String();
+
         try {
             $MessageId = Redis::command(
                 'xadd',
                 [
-                    $streamKey,
+                    env('REDIS_UNIFIED_STREAM'),
                     '*',
-                    $filteredData,
+                    $payload,
                 ]
             );
 
@@ -40,7 +40,7 @@ class DataController extends Controller
             return response()->json([
                 'message' => 'Data received and queued',
                 'message_id' => $MessageId,
-                "data" => $filteredData
+                "data" => $payload
 
             ]);
         } catch (\Throwable $th) {
