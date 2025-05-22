@@ -159,5 +159,14 @@ return [
     //         'database' => 0,
     //     ],
     // ],
+    'options' => [
+        'replication' => 'sentinel',
+        'service' => env('REDIS_SERVICE'),
+        'parameters' => [
+            'password' => env('REDIS_PASSWORD'),
+            'username' => env('REDIS_USERNAME'),
+            'timeout' => 0.1,
+        ],
+    ],
 
 ];
