@@ -1,5 +1,5 @@
 <?php
-use Illuminate\Support\Str;
+
 return [
 
     /*
@@ -69,13 +69,6 @@ return [
             'retry_after' => 90,
             'block_for' => null,
             'after_commit' => false,
-        ],
-        'redis-stream' => [
-            'driver' => 'redis-stream',                 // must match your connector name
-            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
-            'stream' => env('REDIS_UNIFIED_STREAM', 'app:data:stream'),
-            'group' => env('REDIS_STREAM_GROUP', 'stream-workers'),
-            'consumer' => env('REDIS_STREAM_CONSUMER', 'consumer-'.Str::random(10)),
         ],
 
     ],

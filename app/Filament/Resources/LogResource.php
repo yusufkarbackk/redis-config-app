@@ -56,10 +56,6 @@ class LogResource extends Resource
                         'success' => fn($state) => $state === 'OK',
                         'danger' => fn($state) => $state === 'Failed',
                     ]),
-                TextColumn::make('message')
-                    ->label('Message')
-                    ->limit(50) // Show only first 50 characters
-                    ->tooltip(fn($record) => $record->message),
                 TextColumn::make('data_sent')
                     ->label('Data Sent')
                     ->limit(50) // Show only first 50 characters
