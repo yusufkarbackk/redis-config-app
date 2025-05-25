@@ -18,13 +18,14 @@ class DataController extends Controller
 
         $apiKey = $request->header('X-API-Key');
 
-        $application = Application::where('api_key', $apiKey)->select(['name', 'api_key', 'id'])->firstOrFail();
+        $application = Application::where('api_key', $apiKey)->firstOrFail(['id', 'api_key']);
         $validFields = $application->applicationFields()->pluck('name')->toArray();
 
-        $id = $application->getAttributes()['api_key'];
-        $streamKey = "app:data:stream";
+        $streamKey = env('REDIS_UNIFIED_STREAM', 'app:data:stream');
 
         $filteredData = $request->only($validFields);
+        $filteredData['application_id'] = $application->id;
+        $filteredData['api_key'] = $apiKey;
         $filteredData['enqueued_at'] = Carbon::now()->toIso8601String();
         try {
             $MessageId = Redis::command(

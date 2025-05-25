@@ -111,7 +111,6 @@ class RedisStreamQueue extends Queue implements QueueContract
             ProcessStreamMessage::dispatch($id, $fields)
                 ->onConnection('redis')
                 ->onQueue(config('default')); // or a named queue
-            dump($fields);
             // 2) Acknowledge it in the stream so it won't be re-delivered
             $this->redis->xack($this->stream, $this->group, [$id]);
         }

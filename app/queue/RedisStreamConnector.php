@@ -9,7 +9,7 @@ class RedisStreamConnector implements ConnectorInterface
     public function connect(array $config)
     {
         $redis = app('redis')->connection(Arr::get($config, 'connection'));
-
+        //dump("Connecting to Redis Stream with config: ", $config);
         return new RedisStreamQueue(
             $redis,
             Arr::get($config, 'stream'),

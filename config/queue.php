@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Support\Str;
+
 return [
 
     /*
@@ -63,19 +65,21 @@ return [
         ],
 
         'redis' => [
-            'driver' => 'redis',
-            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
-            'queue' => env('REDIS_QUEUE', 'default'),
-            'retry_after' => 90,
-            'block_for' => 0,
-        ],
-        'redis-stream' => [
             'driver'      => 'redis',
             'connection'  => env('REDIS_QUEUE_CONNECTION', 'default'),
-            'queue'       => env('REDIS_UNIFIED_STREAM', 'app:data:stream'),
-            // 0 => infinite block/wait; we want it to sit in XREADGROUP and never poll back
-            'retry_after' => 0,
+            'queue'       => env('REDIS_QUEUE', 'default'),
+            'retry_after' => 90,
             'block_for'   => 0,
+        ],
+        'redis-stream' => [
+            'driver'      => 'redis-stream',
+            'connection'  => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue'       => env('REDIS_UNIFIED_STREAM', 'app:data:stream'),
+            'retry_after' => 0,   // never auto‐retry by Laravel
+            'block_for'   => 0,   // block indefinitely on XREADGROUP
+            'stream'      => env('REDIS_UNIFIED_STREAM','app:data:stream'),  // <— new
+            'group'       => env('REDIS_STREAM_GROUP','stream-workers'),     // <— new
+            'consumer' => env('REDIS_STREAM_CONSUMER', 'consumer-'.Str::random(10)),
         ],
 
     ],
