@@ -22,7 +22,7 @@ class DataController extends Controller
         $validFields = $application->applicationFields()->pluck('name')->toArray();
 
         $id = $application->getAttributes()['api_key'];
-        $streamKey = "app:{$id}:stream";
+        $streamKey = "app:data:stream";
 
         $filteredData = $request->only($validFields);
         $filteredData['enqueued_at'] = Carbon::now()->toIso8601String();
@@ -44,7 +44,7 @@ class DataController extends Controller
 
             ]);
         } catch (\Throwable $th) {
-        
+
             return response()->json([
                 'message' => $th->getMessage(),
                 "line" => $th->getLine(),

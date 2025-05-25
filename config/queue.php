@@ -64,11 +64,18 @@ return [
 
         'redis' => [
             'driver' => 'redis',
-            'connection' => 'default',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
             'retry_after' => 90,
-            'block_for' => null,
-            'after_commit' => false,
+            'block_for' => 0,
+        ],
+        'redis-stream' => [
+            'driver'      => 'redis',
+            'connection'  => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue'       => env('REDIS_UNIFIED_STREAM', 'app:data:stream'),
+            // 0 => infinite block/wait; we want it to sit in XREADGROUP and never poll back
+            'retry_after' => 0,
+            'block_for'   => 0,
         ],
 
     ],
