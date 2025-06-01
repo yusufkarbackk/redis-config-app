@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Application;
 use App\Models\Log;
 use Illuminate\Http\Request;
+use Illuminate\Redis\Connections\PredisConnection;
 use Illuminate\Support\Facades\Redis;
 use Carbon\Carbon;
+use Predis\Client;
 use function PHPSTORM_META\type;
 
 class DataController extends Controller
@@ -27,14 +29,14 @@ class DataController extends Controller
         $filteredData['application_id'] = $application->id;
         $filteredData['api_key'] = $apiKey;
         $filteredData['enqueued_at'] = Carbon::now()->toIso8601String();
+        //dd($streamKey);
         try {
-            $MessageId = Redis::command(
-                'xadd',
-                [
-                    $streamKey,
-                    '*',
-                    $filteredData,
-                ]
+            
+            $redisClient = new Client();
+            $MessageId = $redisClient->xadd(
+                $streamKey,     // e.g. "app:data:stream"
+                $filteredData ,
+                '*'  
             );
 
             //dd($MessageId);
@@ -49,7 +51,7 @@ class DataController extends Controller
             return response()->json([
                 'message' => $th->getMessage(),
                 "line" => $th->getLine(),
-                "file" => $th->getFile()
+                "file" => $th->getFile(),
             ]);
         }
     }

@@ -69,10 +69,10 @@ return [
             'connection'  => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue'       => env('REDIS_QUEUE', 'default'),
             'retry_after' => 90,
-            'block_for'   => 0,
+            'block_for'   => 3,
         ],
         'redis-stream' => [
-            'driver'      => 'redis-stream',
+            'driver'      => 'redis',
             'connection'  => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue'       => env('REDIS_UNIFIED_STREAM', 'app:data:stream'),
             'retry_after' => 0,   // never auto‐retry by Laravel

@@ -30,13 +30,12 @@ class RedisStreamQueue extends Queue implements QueueContract
     {
         // return $this->redis->xadd($this->stream, ['job' => $payload], '*');
 
-        return Redis::command(
-            'xadd',
-            [
+        return Redis::xadd(
+            
                 $this->stream,
                 '*',
                 ['job' => $payload],
-            ]
+            
         );
     }
 

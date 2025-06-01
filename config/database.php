@@ -92,6 +92,9 @@ return [
             // 'encrypt' => env('DB_ENCRYPT', 'yes'),
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
+        'redis' => [
+            'driver' => 'redis'
+        ]
 
     ],
 
@@ -121,53 +124,50 @@ return [
 
     'redis' => [
 
-        'client' => env('REDIS_CLIENT', 'phpredis'),
+        'client' => env('REDIS_CLIENT', 'predis'),
+
+        'sentinel' => [
+            'hosts' => [
+                [
+                    'host' => env('REDIS_SENTINEL_HOST1', '34.0.42.251'),
+                    'port' => env('REDIS_SENTINEL_PORT', 26379),
+                    'timeout' => env('REDIS_CONNECT_TIMEOUT', 0.2)
+                ],
+                [
+                    'host' => env('REDIS_SENTINEL_HOST2', '35.208.223.33'),
+                    'port' => env('REDIS_SENTINEL_PORT', 26379),
+                    'timeout' => env('REDIS_CONNECT_TIMEOUT', 0.2)
+                ],
+                [
+                    'host' => env('REDIS_SENTINEL_HOST3', '35.209.155.169'),
+                    'port' => env('REDIS_SENTINEL_PORT', 26379),
+                    'timeout' => env('REDIS_CONNECT_TIMEOUT', 0.2)
+                ],
+            ],
+            'service' => env('REDIS_SENTINEL_SERVICE', 'yusuf'),
+            'parameters' => [
+                'password' => env('REDIS_SENTINEL_PASSWORD', 'yusuf64'),
+                'database' => 0,
+            ],
+
+            'options' => [
+                'replication' => 'sentinel',
+                'username' => env('REDIS_USERNAME', 'yusuf'),
+                'password' => 'yusuf64',
+                'parameters' => [
+                    'database' => 0,
+                ]
+            ]
+        ],
+
         'default' => [
-            // 'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '34.47.39.172'),
+            'host' => env('REDIS_HOST', '34.0.42.251'),
             'username' => env('REDIS_USERNAME', 'yusuf'),
             'password' => env('REDIS_PASSWORD', 'yusuf64'),
-            'port' => env('REDIS_PORT', '6379'),
-            'database' => env('REDIS_DB', '0'),
-            'read_timeout' => -1,
-            'timeout'      => 0.0,
+            'port' => env('REDIS_PORT', 6379),
+            'database' => env('REDIS_DB', 0),
         ],
 
-        // 'cache' => [
-        //     'url' => env('REDIS_URL'),
-        //     'host' => env('REDIS_HOST', '34.136.252.133'),
-        //     'username' => env('REDIS_USERNAME', 'yusuf'),
-        //     'password' => env('REDIS_PASSWORD', 'yusuf64'),
-        //     'port' => env('REDIS_PORT', '6380'),
-        //     'database' => env('REDIS_CACHE_DB', '1'),
-        // ],
-
-    ],
-    // 'redis' => [
-    //     'client' => 'phpredis',
-
-    //     'master' => [
-    //         'host' => env('REDIS_MASTER_HOST', '127.0.0.1'),
-    //         'password' => env('REDIS_PASSWORD', null),
-    //         'port' => env('REDIS_PORT', 6379),
-    //         'database' => 0,
-    //     ],
-
-    //     'slave' => [
-    //         'host' => env('REDIS_SLAVE_HOST', '127.0.0.1'),
-    //         'password' => env('REDIS_PASSWORD', null),
-    //         'port' => env('REDIS_PORT', 6379),
-    //         'database' => 0,
-    //     ],
-    // ],
-    'options' => [
-        'replication' => 'sentinel',
-        'service' => env('REDIS_SERVICE'),
-        'parameters' => [
-            'password' => env('REDIS_PASSWORD'),
-            'username' => env('REDIS_USERNAME'),
-            'timeout' => 0.1,
-        ],
     ],
 
 ];
