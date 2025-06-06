@@ -124,50 +124,59 @@ return [
 
     'redis' => [
 
-        'client' => env('REDIS_CLIENT', 'predis'),
+        'options' => [
 
-        'sentinel' => [
-            'hosts' => [
+            // 3a) “sentinel” here is the magic switch. Predis now knows to talk to Sentinels.
+            'replication' => 'sentinel',
+
+            // 3b) This must match your sentinel.conf’s “monitor <service> …” exactly.
+            'service' => env('REDIS_SENTINEL_SERVICE', 'yusuf'),
+
+            // 3c) Once Predis finds the master, it will automatically:
+            //     AUTH <username> <password> and SELECT <database>
+            'parameters' => [
+                'password' => env('REDIS_PASSWORD'),     // e.g. “yusuf64”
+                'username' => env('REDIS_USERNAME', null),// e.g. “yusuf”
+                'database' => env('REDIS_DB', 0),        // logical DB index
+            ],
+
+            // 3d) List all your Sentinel endpoints here. Predis will ask them in turn:
+            'sentinels' => [
                 [
                     'host' => env('REDIS_SENTINEL_HOST1', '34.0.42.251'),
                     'port' => env('REDIS_SENTINEL_PORT', 26379),
-                    'timeout' => env('REDIS_CONNECT_TIMEOUT', 0.2)
                 ],
                 [
                     'host' => env('REDIS_SENTINEL_HOST2', '35.208.223.33'),
                     'port' => env('REDIS_SENTINEL_PORT', 26379),
-                    'timeout' => env('REDIS_CONNECT_TIMEOUT', 0.2)
                 ],
                 [
                     'host' => env('REDIS_SENTINEL_HOST3', '35.209.155.169'),
                     'port' => env('REDIS_SENTINEL_PORT', 26379),
-                    'timeout' => env('REDIS_CONNECT_TIMEOUT', 0.2)
                 ],
             ],
-            'service' => env('REDIS_SENTINEL_SERVICE', 'yusuf'),
-            'parameters' => [
-                'password' => env('REDIS_SENTINEL_PASSWORD', 'yusuf64'),
-                'database' => 0,
-            ],
 
-            'options' => [
-                'replication' => 'sentinel',
-                'username' => env('REDIS_USERNAME', 'yusuf'),
-                'password' => 'yusuf64',
-                'parameters' => [
-                    'database' => 0,
-                ]
-            ]
+            // 3e) (Optional) Tweak these if you need a custom timeout or non‐persistent.
+            'timeout' => 0.0,
+            'read_timeout' => -1,
+            'persistent' => false,
         ],
 
-        'default' => [
+
+        //
+        // 1) Use Predis (not PhpRedis). This enables the “options” block below.
+        //
+        'client' => env('REDIS_CLIENT', 'predis'),
+
+
+        'cache' => [
             'host' => env('REDIS_HOST', '34.0.42.251'),
-            'username' => env('REDIS_USERNAME', 'yusuf'),
-            'password' => env('REDIS_PASSWORD', 'yusuf64'),
+            'password' => env('REDIS_PASSWORD', null),
             'port' => env('REDIS_PORT', 6379),
-            'database' => env('REDIS_DB', 0),
+            'database' => env('REDIS_CACHE_DB', 1),
         ],
 
     ],
+
 
 ];

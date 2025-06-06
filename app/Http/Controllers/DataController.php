@@ -31,12 +31,12 @@ class DataController extends Controller
         $filteredData['enqueued_at'] = Carbon::now()->toIso8601String();
         //dd($streamKey);
         try {
-            
+
             $redisClient = new Client();
             $MessageId = $redisClient->xadd(
                 $streamKey,     // e.g. "app:data:stream"
-                $filteredData ,
-                '*'  
+                $filteredData,
+                '*'
             );
 
             //dd($MessageId);
@@ -53,6 +53,37 @@ class DataController extends Controller
                 "line" => $th->getLine(),
                 "file" => $th->getFile(),
             ]);
+        }
+    }
+
+    public function redisCheck()
+    {
+        try {
+            // Perform a simple PING
+            $pong = Redis::ping();
+
+            // Optionally, grab a bit more info:
+            $info = Redis::info();           // returns array of INFO output
+            $keys = Redis::keys('*');        // list all keys in the current DB
+
+            // 2) Optionally, ask who the current master is (Predis‐specific)
+            $client = Redis::connection()->client();
+            $params = $client->getConnection()->getParameters();
+            $masterAddress = $params->host . ':' . $params->port;
+
+            return response()->json([
+                'status' => 'connected',
+                'pong' => $pong,
+                'info' => $info,
+                'keys' => $keys,
+                'current_master' => $masterAddress
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 500);
         }
     }
 }
