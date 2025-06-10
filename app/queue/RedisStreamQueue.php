@@ -85,15 +85,7 @@ class RedisStreamQueue extends Queue implements QueueContract
      */
     public function pop($queue = null)
     {
-        // Block forever until we get at least 1 message
-        // $messages = $this->redis->xreadgroup(
-        //     $this->group,
-        //     $this->consumer,
-        //     [$this->stream => '>'],
-        //     1,
-        //     0
-        // );
-
+        
         $messages = Redis::xreadgroup(
             $this->group,
             $this->consumer,

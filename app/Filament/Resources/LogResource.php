@@ -38,6 +38,7 @@ class LogResource extends Resource
 
                 DateTimePicker::make('sent_at')->label('Sent At')->disabled(),
                 DateTimePicker::make('received_at')->label('Received At')->disabled(),
+                
             ]);
     }
 
@@ -72,6 +73,8 @@ class LogResource extends Resource
                 TextColumn::make('received_at')
                     ->label('Received At')
                     ->dateTime(),
+                TextColumn::make('message')
+                    ->label('Message')
             ])
             ->defaultSort('created_at', 'desc')
             ->paginated(10) // Paginate results

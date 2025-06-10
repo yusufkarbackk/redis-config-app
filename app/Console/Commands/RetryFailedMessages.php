@@ -16,95 +16,120 @@ class RetryFailedMessages extends Command
 
     public function handle()
     {
-        Log::info('RetryFailedMessages started at ' . now());
+        Log::info('Retry start ' . now());
 
-        // Load all subscriptions (app ↔ table)
-        $subscriptions = ApplicationTableSubscription::with([
+        // 1) Cari semua key retry:subscription:*
+        $keys = Redis::keys('retry:subscription:*');
+        if (empty($keys)) {
+            $this->info('No retry keys found');
+            return;
+        }
+
+        // 2) Ekstrak subscription IDs dan eager-load
+        $subIds = array_map(fn($k) => (int) last(explode(':', $k)), $keys);
+        $subs = ApplicationTableSubscription::with([
+            'application',
             'databaseTable.database',
-            'application.name',
-        ])->get();
-        foreach ($subscriptions as $sub) {
-            $group = $sub->consumer_group;
-            $retryKey = "retry:{$group}";
-            $source = $sub->application->name;
-            $rawData = $sub->fieldMappings->pluck('applicationField.name')->toArray();
-            
+            'fieldMappings.applicationField',
+        ])
+            ->findMany($subIds)
+            ->keyBy('id');
 
-            // Grab all held entries for this group
-            $entries = Redis::lrange($retryKey, 0, -1);
-            if (empty($entries)) {
+        foreach ($keys as $key) {
+            $id = (int) last(explode(':', $key));
+            $sub = $subs->get($id);
+            if (!$sub) {
+                Redis::del($key);
                 continue;
             }
 
-            $db = $sub->databaseTable->database;
+            $appName = $sub->application->name;
+            $dbConf = $sub->databaseTable->database;
             $table = $sub->databaseTable->table_name;
+            $mapping = $sub->fieldMappings
+                ->pluck('mapped_to', 'applicationField.name')
+                ->toArray();
 
-            // Is the DB back up?
-            if (!$this->isDatabaseServerReachable($db->host, $db->port)) {
-                $this->warn("↻ {$db->name} still down, skipping retry for group “{$group}”");
+            // 3) Ambil semua entry JSON
+            $entries = Redis::lrange($key, 0, -1);
+            if (empty($entries)) {
+                Redis::del($key);
                 continue;
             }
 
-            // Open PDO once per subscription
-            $pdo = $this->makePdo($db);
+            // 4) Siapkan PDO + sekali prepare statement
+            $pdo = new PDO(
+                "{$dbConf->connection_type}:host={$dbConf->host};dbname={$dbConf->database_name}",
+                $dbConf->username,
+                $dbConf->password,
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            );
 
+            $successCount = 0;
+            $total = count($entries);
+
+            // 5) Loop setiap entry
             foreach ($entries as $json) {
                 $payload = json_decode($json, true);
-                $data = $payload['data'] ?? [];
+                $data = [];
+
+                // filter & rename fields
+                foreach ($mapping as $appField => $col) {
+                    if (isset($payload['data'][$appField])) {
+                        $data[$col] = $payload['data'][$appField];
+                    }
+                }
 
                 if (empty($data)) {
-                    // nothing to insert, drop it
-                    Redis::lrem($retryKey, 0, $json);
+                    $successCount++;
                     continue;
                 }
 
-                // Build INSERT query
+                // build SQL & bind sekali per subscription
                 $cols = array_keys($data);
-                $placeholders = array_map(fn($c) => ":{$c}", $cols);
-                $sql = sprintf(
-                    'INSERT INTO `%s` (%s) VALUES (%s)',
-                    $table,
-                    implode(',', $cols),
-                    implode(',', $placeholders),
-                );
+                $ph = implode(',', array_fill(0, count($cols), '?'));
+                $sql = "INSERT INTO `$table` (" . implode(',', $cols) . ") VALUES ($ph)";
 
                 try {
                     $pdo->beginTransaction();
                     $stmt = $pdo->prepare($sql);
-                    foreach ($data as $col => $val) {
-                        $stmt->bindValue(":{$col}", $val);
-                    }
-                    $stmt->execute();
+                    $stmt->execute(array_values($data));
                     $pdo->commit();
 
+                    // log success
                     \App\Models\Log::create([
-                        'source' => $source,
+                        'source' => $appName,
                         'destination' => $table,
-                        'data_sent' => $data,              // the raw $data you sent into the query
-                        'data_received' => $data,        // the final array you inserted
-                        'sent_at' => now(),              // or the timestamp from Redis message if you embedded it
+                        'data_sent' => json_encode($payload['data']),
+                        'data_received' => json_encode($data),
+                        'sent_at' => now(),
                         'received_at' => now(),
-                        'message' => 'data sent from retry'
+                        'status' => 'OK',
+                        'message' => 'retried',
                     ]);
 
-                    // on success, remove this entry
-                    Redis::lrem($retryKey, 0, $json);
-                    $this->info("✔ Retried and inserted into {$table}");
+                    $successCount++;
                 } catch (\Throwable $e) {
                     $pdo->rollBack();
-                    $this->error("✖ Retry failed for {$table}: " . $e->getMessage());
+                    Log::error("Retry failed sub {$id} table {$table}: {$e->getMessage()}");
+                    // tidak increment successCount
                 }
             }
 
-            // If we've cleared all entries, delete the list key entirely
-            if (empty(Redis::lrange($retryKey, 0, -1))) {
-                Redis::del($retryKey);
-                $this->info("🗑️ Cleared retry list for group “{$group}”");
+            // 6) Hapus entry yg sukses, sisanya dipertahankan
+            if ($successCount === $total) {
+                Redis::del($key);
+                $this->info("✅ Cleared full retry list for sub {$id}");
+            } else {
+                // simpan hanya sisa yang gagal
+                Redis::ltrim($key, $successCount, -1);
+                $this->info("🔁 Trimmed retry list for sub {$id}, kept " . ($total - $successCount) . " entries");
             }
         }
 
-        Log::info('RetryFailedMessages finished at ' . now());
+        Log::info('Retry end ' . now());
     }
+
 
     protected function isDatabaseServerReachable(string $host, int $port): bool
     {

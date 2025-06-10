@@ -36,35 +36,28 @@ class ProcessStreamMessage implements ShouldQueue
     public function handle(): void
     {
         try {
-            dump("▶️  Processing message {$this->messageId}", $this->payload);
             \Log::info('Processing payload', $this->payload);
-            // 1) Find the sending App
             $app = Application::where('api_key', $this->payload['api_key'] ?? null)->first();
             if (!$app) {
-                // No such app → drop it
                 return;
             }
 
-            // 2) Parse the true enqueue time
             $sentAt = Carbon::parse($this->payload['enqueued_at'] ?? now());
 
-            // 3) Remove meta-fields so data_sent is just business data
             $rawData = collect($this->payload)
                 ->except(['api_key', 'enqueued_at'])
                 ->toArray();
 
-            // 4) Load all table subscriptions for this app
             $subscriptions = ApplicationTableSubscription::with([
                 'databaseTable.database',
                 'fieldMappings.applicationField',
             ])->where('application_id', $app->id)->get();
-            dump($subscriptions->count());
+            //dump($subscriptions->count());
             foreach ($subscriptions as $sub) {
                 $dbConfig = $sub->databaseTable->database;
                 $tableName = $sub->databaseTable->table_name;
                 $consumer = $sub->consumer_group;
-                dump("sub id: {$sub->id}");
-                // 5) Build the mapped payload for this table
+                //dump("sub id: {$sub->id}");
                 $mapped = [];
                 foreach ($sub->fieldMappings as $mapping) {
                     $appFieldName = $mapping->applicationField->name;
@@ -77,12 +70,15 @@ class ProcessStreamMessage implements ShouldQueue
                     // nothing to insert for this table
                     continue;
                 }
-                dump($mapped);
-                // 6) Attempt to insert (or queue for retry)
+                //dump($mapped);
                 if ($this->isDatabaseServerReachable($dbConfig->host, $dbConfig->port)) {
                     $this->insertIntoTable($dbConfig, $tableName, $mapped, $app->name, $rawData, $sentAt);
                 } else {
-                    $this->holdForRetry($consumer, $tableName, $mapped, $app->name, $rawData, $sentAt, subId: $sub->id);
+                    \Log::warning("Database unreachable for sub {$sub->id} - holding for retry", [
+                        'db_host' => $dbConfig->host,
+                        'db_port' => $dbConfig->port,
+                    ]);
+                    $this->holdForRetry($consumer, $tableName, $mapped, $app->name, $rawData, $sentAt, $sub->id);
                 }
             }
         } catch (\Throwable $th) {
@@ -127,42 +123,47 @@ class ProcessStreamMessage implements ShouldQueue
             ]);
         } catch (\Throwable $e) {
             \Log::info("Error: {$e->getMessage()}");
-
-            //$pdo->rollBack();
-            // On any error, hold for retry
-            //$this->holdForRetry($consumer ?? '', $table, $mapped, $source, $rawData, $sentAt, $e->getMessage());
         }
     }
 
     protected function holdForRetry(
-        string $consumer,
+        int $subscriptionId,
         string $table,
         array $mapped,
         string $source,
         array $rawData,
         Carbon $sentAt,
-        string $subId,
         string $error = 'database unreachable',
     ): void {
-        $retryKey = "retry:subscription:{$subId}";
-        Redis::rpush(
-            $retryKey,
-            json_encode([
-                'data' => $mapped,
-            ])
-        );
+        // 1) key per‐subscription
+        $retryKey = "retry:subscription:{$subscriptionId}";
 
-        Log::create([
+        // 2) isi yang akan kita retry nanti
+        $entry = [
+            'table' => $table,
+            'data' => $mapped,
+            'source' => $source,
+            'raw_data' => $rawData,
+            'sent_at' => $sentAt->toDateTimeString(),
+            'error' => $error,
+        ];
+
+        // 3) push ke list
+        Redis::rpush($retryKey, json_encode($entry));
+
+        // 4) log ke DB
+        \App\Models\Log::create([
             'source' => $source,
             'destination' => $table,
             'data_sent' => json_encode($rawData),
-            'data_received' => json_encode([]),    // no data applied
+            'data_received' => json_encode([]),
             'sent_at' => $sentAt,
             'received_at' => now(),
-            'status' => 'Pending',
+            'status' => 'RETRY',
             'message' => "held for retry: {$error}",
         ]);
     }
+
 
     protected function isDatabaseServerReachable(string $host, int $port): bool
     {

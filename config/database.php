@@ -161,13 +161,34 @@ return [
         ],
 
         'default' => [
-            'host' => env('REDIS_HOST', '34.0.42.251'),
-            'username' => env('REDIS_USERNAME', 'yusuf'),
-            'password' => env('REDIS_PASSWORD', 'yusuf64'),
-            'port' => env('REDIS_PORT', 6379),
-            'database' => env('REDIS_DB', 0),
+            // 'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '34.47.39.172'),
+            'password' => env('REDIS_PASSWORD', 'null'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_DB', '0'),
+            'read_timeout' => -1,
+            'timeout'      => 0.0,
         ],
 
+        // 'cache' => [
+        //     'url' => env('REDIS_URL'),
+        //     'host' => env('REDIS_HOST', '34.136.252.133'),
+        //     'username' => env('REDIS_USERNAME', 'yusuf'),
+        //     'password' => env('REDIS_PASSWORD', 'yusuf64'),
+        //     'port' => env('REDIS_PORT', '6380'),
+        //     'database' => env('REDIS_CACHE_DB', '1'),
+        // ],
+
+    ],
+    
+    'options' => [
+        'replication' => 'sentinel',
+        'service' => env('REDIS_SERVICE'),
+        'parameters' => [
+            'password' => env('REDIS_PASSWORD'),
+            'username' => env('REDIS_USERNAME'),
+            'timeout' => 0.1,
+        ],
     ],
 
 ];
