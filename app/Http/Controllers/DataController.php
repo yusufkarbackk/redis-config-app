@@ -5,10 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Application;
 use App\Models\Log;
 use Illuminate\Http\Request;
-use Illuminate\Redis\Connections\PredisConnection;
 use Illuminate\Support\Facades\Redis;
 use Carbon\Carbon;
-use Predis\Client;
 use function PHPSTORM_META\type;
 
 class DataController extends Controller
@@ -20,31 +18,32 @@ class DataController extends Controller
 
         $apiKey = $request->header('X-API-Key');
 
-        $application = Application::where('api_key', $apiKey)->firstOrFail(['id', 'api_key']);
+        $application = Application::where('api_key', $apiKey)->select(['name', 'api_key', 'id'])->firstOrFail();
         $validFields = $application->applicationFields()->pluck('name')->toArray();
 
-        $streamKey = env('REDIS_UNIFIED_STREAM', 'app:data:stream');
+        $id = $application->getAttributes()['api_key'];
+        $streamKey = "app:data:stream";
 
         $filteredData = $request->only($validFields);
-        $filteredData['application_id'] = $application->id;
-        $filteredData['api_key'] = $apiKey;
         $filteredData['enqueued_at'] = Carbon::now()->toIso8601String();
         //dd($streamKey);
         try {
+            $prodConn = Redis::connection();        // objek Illuminate\Redis…\Connection
+            $client = $prodConn->client();
 
-            $redisClient = new Client();
-            $MessageId = $redisClient->xadd(
+            $prodcfg = $client->getHost() . ':' . $client->getPort();
+            \Log::info("Redis connection established: {$prodcfg}");
+            $MessageId = $client->xadd(
                 $streamKey,     // e.g. "app:data:stream"
-                $filteredData,
-                '*'
+                '*',
+                $filteredData
             );
-
+            //dd($client);
             //dd($MessageId);
             return response()->json([
                 'message' => 'Data received and queued',
                 'message_id' => $MessageId,
-                "data" => $filteredData
-
+                "data" => $filteredData,
             ]);
         } catch (\Throwable $th) {
 

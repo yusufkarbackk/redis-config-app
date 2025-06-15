@@ -126,13 +126,14 @@ return [
         'client' => env('REDIS_CLIENT', 'phpredis'),
         'default' => [
             // 'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '34.47.39.172'),
+            'host' => env('REDIS_HOST', '34.47.53.72'),
             'password' => env('REDIS_PASSWORD', 'yusuf64'),
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_DB', '0'),
             'read_timeout' => -1,
-            'timeout'      => 0.0,
+            'timeout' => 0.0,
         ],
+
 
         // 'cache' => [
         //     'url' => env('REDIS_URL'),
@@ -144,16 +145,4 @@ return [
         // ],
 
     ],
-    
-    'options' => [
-        'replication' => 'sentinel',
-        'service' => env('REDIS_SERVICE'),
-        'parameters' => [
-            'password' => env('REDIS_PASSWORD'),
-            'username' => env('REDIS_USERNAME'),
-            'timeout' => 0.1,
-        ],
-    ],
-
-
 ];

@@ -35,6 +35,17 @@ class ProcessStreamMessage implements ShouldQueue
      */
     public function handle(): void
     {
+        dump('Job running inside PID '.getmypid());
+
+        dump("▶️  Processing message {$this->messageId}", $this->payload);
+        \Log::info('Processing payload', $this->payload);
+        // 1) Find the sending App
+        $app = Application::where('api_key', $this->payload['api_key'] ?? null)->first();
+        dump($app);
+        if (!$app) {
+            // No such app → drop it
+            return;
+        }
         try {
             \Log::info('Processing payload', $this->payload);
             $app = Application::where('api_key', $this->payload['api_key'] ?? null)->first();
@@ -42,22 +53,29 @@ class ProcessStreamMessage implements ShouldQueue
                 return;
             }
 
+            // 2) Parse the true enqueue time
             $sentAt = Carbon::parse($this->payload['enqueued_at'] ?? now());
 
+            // 3) Remove meta-fields so data_sent is just business data
+            $rawData = collect($this->payload)
+                ->except(['api_key', 'enqueued_at'])
+                ->toArray();
             $rawData = collect($this->payload)
                 ->except(['api_key', 'enqueued_at'])
                 ->toArray();
 
+            // 4) Load all table subscriptions for this app
             $subscriptions = ApplicationTableSubscription::with([
                 'databaseTable.database',
                 'fieldMappings.applicationField',
             ])->where('application_id', $app->id)->get();
-            //dump($subscriptions->count());
+
             foreach ($subscriptions as $sub) {
                 $dbConfig = $sub->databaseTable->database;
                 $tableName = $sub->databaseTable->table_name;
                 $consumer = $sub->consumer_group;
-                //dump("sub id: {$sub->id}");
+                dump("sub id: {$sub->id}");
+                // 5) Build the mapped payload for this table
                 $mapped = [];
                 foreach ($sub->fieldMappings as $mapping) {
                     $appFieldName = $mapping->applicationField->name;
@@ -65,28 +83,42 @@ class ProcessStreamMessage implements ShouldQueue
                         $mapped[$mapping->mapped_to] = $this->payload[$appFieldName];
                     }
                 }
+                $subscriptions = ApplicationTableSubscription::with([
+                    'databaseTable.database',
+                    'fieldMappings.applicationField',
+                ])->where('application_id', $app->id)->get();
+                //dump($subscriptions->count());
+                foreach ($subscriptions as $sub) {
+                    $dbConfig = $sub->databaseTable->database;
+                    $tableName = $sub->databaseTable->table_name;
+                    $consumer = $sub->consumer_group;
+                    //dump("sub id: {$sub->id}");
+                    $mapped = [];
+                    foreach ($sub->fieldMappings as $mapping) {
+                        $appFieldName = $mapping->applicationField->name;
+                        if (isset($this->payload[$appFieldName])) {
+                            $mapped[$mapping->mapped_to] = $this->payload[$appFieldName];
+                        }
+                    }
 
-                if (empty($mapped)) {
-                    // nothing to insert for this table
-                    continue;
+                    if (empty($mapped)) {
+                        // nothing to insert for this table
+                        continue;
+                    }
+                    dump($mapped);
+                    // 6) Attempt to insert (or queue for retry)
+                    if ($this->isDatabaseServerReachable($dbConfig->host, $dbConfig->port)) {
+                        $this->insertIntoTable($dbConfig, $tableName, $mapped, $app->name, $rawData, $sentAt);
+                    } else {
+                        $this->holdForRetry($sub->id, $tableName, $mapped, $app->name, $rawData, $sentAt, );
+                    }
                 }
-                //dump($mapped);
-                if ($this->isDatabaseServerReachable($dbConfig->host, $dbConfig->port)) {
-                    $this->insertIntoTable($dbConfig, $tableName, $mapped, $app->name, $rawData, $sentAt);
-                } else {
-                    \Log::warning("Database unreachable for sub {$sub->id} - holding for retry", [
-                        'db_host' => $dbConfig->host,
-                        'db_port' => $dbConfig->port,
-                    ]);
-                    $this->holdForRetry($consumer, $tableName, $mapped, $app->name, $rawData, $sentAt, $sub->id);
-                }
+
             }
-        } catch (\Throwable $th) {
-            //throw $th;
-            \Log::error("Error processing message {$this->messageId}: {$th->getMessage()}", [
-                'payload' => $this->payload,
-                'trace' => $th->getTraceAsString(),
-            ]);
+
+        } catch (\Throwable $e) {
+            \Log::error("Error finding application: {$e->getMessage()}");
+            return;
         }
     }
 
@@ -164,7 +196,6 @@ class ProcessStreamMessage implements ShouldQueue
         ]);
     }
 
-
     protected function isDatabaseServerReachable(string $host, int $port): bool
     {
         $conn = @fsockopen($host, $port, $errno, $errstr, 2);
@@ -174,5 +205,4 @@ class ProcessStreamMessage implements ShouldQueue
         }
         return false;
     }
-
 }

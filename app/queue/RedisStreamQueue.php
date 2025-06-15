@@ -2,138 +2,102 @@
 
 namespace App\Queue;
 
-use App\Jobs\ProcessStreamMessage;
 use Illuminate\Queue\Queue;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Redis;
+use Illuminate\Redis\Connections\Connection;
+use Illuminate\Support\Facades\Log;
+use Redis\Exception;
+
+use App\Jobs\ProcessStreamMessage;
 
 class RedisStreamQueue extends Queue implements QueueContract
 {
+    protected $client;
+    protected string $stream;
+    protected string $group;
+    protected string $consumer;
 
-    protected $redis;
-    protected $stream;
-    protected $group;
-    protected $consumer;
-    /**
-     * Get the size of the queue.
-     */
-    public function size($queue = null)
+    public function __construct(Connection $redis, string $stream, string $group, string $consumer)
     {
-        return $this->redis->xlen($this->stream);
-    }
+        dump('Listener connect to ' . $redis->getHost() . ':' . $redis->getPort());
 
-    /**
-     * Push a raw payload onto the queue.
-     */
-    public function pushRaw($payload, $queue = null, array $options = [])
-    {
-        // return $this->redis->xadd($this->stream, ['job' => $payload], '*');
-
-        return Redis::xadd(
-            
-                $this->stream,
-                '*',
-                ['job' => $payload],
-            
-        );
-    }
-
-    /**
-     * Push a new job onto the queue after a delay.
-     */
-    public function later($delay, $job, $data = '', $queue = null)
-    {
-        $payload = $this->createPayload($job, $data);
-
-        // Simulate delay by scheduling the job with a timestamp
-        $this->redis->zadd(
-            "{$this->stream}:delayed",
-            ['NX'],
-            time() + $this->secondsUntil($delay),
-            $payload
-        );
-    }
-
-
-    /**
-     * @param  \Illuminate\Redis\Connections\Connection  $redis
-     * @param  string  $stream     The Redis stream key
-     * @param  string  $group      The consumer group name
-     * @param  string  $consumer   This consumer’s name
-     */
-    public function __construct($redis, string $stream, string $group, string $consumer)
-    {
-        $this->redis = $redis;
+        // Simpan objek phpredis mentah
+        $this->client = $redis->client();
         $this->stream = $stream;
         $this->group = $group;
         $this->consumer = $consumer;
 
-        // Ensure the consumer group exists (MKSTREAM creates the stream if needed)
+        // Pastikan consumer-group ada
         try {
-            // $this->redis->xgroup('CREATE', $this->stream, $this->group, '$', true);
+            $this->client->xGroup('CREATE', $stream, $group, '0', true);
+        } catch (RedisException $e) {
 
-            Redis::command('xgroup', ['CREATE', $this->stream, $this->group, '$', true]);
-
-        } catch (\Throwable $e) {
-            // Group probably already exists
+            // ignore “BUSYGROUP”
         }
     }
 
-    /**
-     * Pop the next job off of the queue.
-     */
+    /** Push raw payload (dipakai Laravel) */
+    public function pushRaw($payload, $queue = null, array $options = [])
+    {
+        return $this->client->xAdd($this->stream, '*', ['job' => $payload]);
+    }
+
+    /** Ambil 1 pesan berikutnya */
     public function pop($queue = null)
     {
-        
-        $messages = Redis::xreadgroup(
+        $messages = $this->client->xReadGroup(
             $this->group,
             $this->consumer,
             [$this->stream => '>'],
-            1,
-            0
+            1,   // COUNT
+            0    // BLOCK ms (0 = blok selamanya)
         );
 
-        $entries = $messages[$this->stream] ?? [];
-        dump($entries);
-        foreach ($entries as $id => $fields) {
-            // 1) Hand it off to a normal Laravel queue job,
-            //    forcing it onto the "redis" connection:
-            ProcessStreamMessage::dispatch($id, $fields)
-                ->onConnection('redis')
-                ->onQueue(config('default')); // or a named queue
-            // 2) Acknowledge it in the stream so it won't be re-delivered
-            $this->redis->xack($this->stream, $this->group, [$id]);
+        if (!$messages || !isset($messages[$this->stream])) {
+            return null;
         }
 
-        // We handled dispatch & ack; nothing else for Laravel to do here
-        return null;
+        dump($messages);
+
+        foreach ($messages[$this->stream] as $id => $fields) {
+            dump($fields); // Debug: tampilkan fields
+            // Kirim ke Job Laravel biasa
+            try {
+                \Log::info('Dispatching job for message ID: ' . $id);
+                dump(ProcessStreamMessage::dispatch($id, $fields)
+                    ->onConnection('redis')   // worker redis biasa
+                    ->onQueue('redis'));
+            } catch (\Throwable $th) {
+                //throw $th;
+                \Log::error('Failed to dispatch job: ' . $th->getMessage() . $th->getFile() . ':' . $th->getLine());
+            }
+            // ACK supaya tidak diulang
+            $this->client->xAck($this->stream, $this->group, [$id]);
+        }
+
+        return null; // Laravel tak perlu Job implisit
     }
 
+    /* --- fungsi lain (size, later, dll) bisa dikosongkan bila tak dipakai --- */
+
     /**
-     * Delete a reserved job.
+     * @inheritDoc
      */
-    public function deleteMessage(string $id)
+    public function later($delay, $job, $data = '', $queue = null)
     {
-        $this->redis->xack($this->stream, $this->group, [$id]);
     }
 
     /**
-     * Push a new job onto the queue.
-     * (Used if you dispatch jobs into this connection.)
+     * @inheritDoc
      */
     public function push($job, $data = '', $queue = null)
     {
-        $payload = $this->createPayload($job, $data);
+    }
 
-        // $this->redis->xadd($this->stream, ['job' => $payload], '*');
-        Redis::command(
-            'xadd',
-            [
-                $this->stream,
-                '*',
-                ['job' => $payload],
-            ]
-        );
+    /**
+     * @inheritDoc
+     */
+    public function size($queue = null)
+    {
     }
 }

@@ -15,7 +15,7 @@ return [
     |
     */
 
-    'default' => env('QUEUE_CONNECTION', 'sync'),
+    'default' => env('QUEUE_CONNECTION', 'redis'),
 
     /*
     |--------------------------------------------------------------------------
@@ -65,21 +65,16 @@ return [
         ],
 
         'redis' => [
-            'driver'      => 'redis',
-            'connection'  => env('REDIS_QUEUE_CONNECTION', 'default'),
-            'queue'       => env('REDIS_QUEUE', 'default'),
-            'retry_after' => 90,
-            'block_for'   => 3,
+            'driver' => 'redis',
+            'connection' => 'default',
+            'queue' => 'redis',
         ],
         'redis-stream' => [
-            'driver'      => 'redis',
-            'connection'  => env('REDIS_QUEUE_CONNECTION', 'default'),
-            'queue'       => env('REDIS_UNIFIED_STREAM', 'app:data:stream'),
-            'retry_after' => 0,   // never auto‐retry by Laravel
-            'block_for'   => 0,   // block indefinitely on XREADGROUP
-            'stream'      => env('REDIS_UNIFIED_STREAM','app:data:stream'),  // <— new
-            'group'       => env('REDIS_STREAM_GROUP','stream-workers'),     // <— new
-            'consumer' => env('REDIS_STREAM_CONSUMER', 'consumer-'.Str::random(10)),
+            'driver' => 'redis-stream',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'stream' => env('REDIS_UNIFIED_STREAM', 'app:data:stream'),
+            'group' => env('REDIS_STREAM_GROUP', 'stream-workers'),
+            'consumer' => 'consumer-' . Str::random(8),
         ],
 
     ],
