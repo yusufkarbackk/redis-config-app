@@ -100,6 +100,7 @@ class RetryFailedMessages extends Command
                     \App\Models\Log::create([
                         'source' => $appName,
                         'destination' => $table,
+                        'host' => $dbConf->host,
                         'data_sent' => json_encode($payload['data']),
                         'data_received' => json_encode($data),
                         'sent_at' => now(),
@@ -110,7 +111,7 @@ class RetryFailedMessages extends Command
 
                     $successCount++;
                 } catch (\Throwable $e) {
-                    $pdo->rollBack();
+                    //$pdo->rollBack();
                     Log::error("Retry failed sub {$id} table {$table}: {$e->getMessage()}");
                     // tidak increment successCount
                 }

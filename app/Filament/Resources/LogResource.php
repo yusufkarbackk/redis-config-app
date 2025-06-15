@@ -32,13 +32,11 @@ class LogResource extends Resource
 
                 TextInput::make('source')->label('Source')->disabled(),
                 TextInput::make('destination')->label('Destination')->disabled(),
-
+                TextInput::make('host')->label('Host')->disabled(),
                 Textarea::make('data_sent')->label('Data Sent')->disabled(),
                 Textarea::make('data_received')->label('Data Received')->disabled(),
-
                 DateTimePicker::make('sent_at')->label('Sent At')->disabled(),
                 DateTimePicker::make('received_at')->label('Received At')->disabled(),
-                
             ]);
     }
 
@@ -50,8 +48,9 @@ class LogResource extends Resource
                     ->sortable(),
                 BadgeColumn::make('source')
                     ->colors(['primary']),
-                BadgeColumn::make('destination')
-                    ->colors(['primary']),
+                BadgeColumn::make('destination'),
+                TextColumn::make('host')
+                    ->label('Host'),
                 BadgeColumn::make('status')
                     ->colors([
                         'success' => fn($state) => $state === 'OK',

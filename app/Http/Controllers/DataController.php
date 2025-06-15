@@ -26,6 +26,7 @@ class DataController extends Controller
 
         $filteredData = $request->only($validFields);
         $filteredData['enqueued_at'] = Carbon::now()->toIso8601String();
+        $filteredData['api_key'] = $id;
         //dd($streamKey);
         try {
             $prodConn = Redis::connection();        // objek Illuminate\Redis…\Connection

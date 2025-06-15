@@ -35,13 +35,10 @@ class ProcessStreamMessage implements ShouldQueue
      */
     public function handle(): void
     {
-        dump('Job running inside PID '.getmypid());
-
         dump("▶️  Processing message {$this->messageId}", $this->payload);
         \Log::info('Processing payload', $this->payload);
         // 1) Find the sending App
         $app = Application::where('api_key', $this->payload['api_key'] ?? null)->first();
-        dump($app);
         if (!$app) {
             // No such app → drop it
             return;
@@ -57,9 +54,6 @@ class ProcessStreamMessage implements ShouldQueue
             $sentAt = Carbon::parse($this->payload['enqueued_at'] ?? now());
 
             // 3) Remove meta-fields so data_sent is just business data
-            $rawData = collect($this->payload)
-                ->except(['api_key', 'enqueued_at'])
-                ->toArray();
             $rawData = collect($this->payload)
                 ->except(['api_key', 'enqueued_at'])
                 ->toArray();
@@ -83,37 +77,18 @@ class ProcessStreamMessage implements ShouldQueue
                         $mapped[$mapping->mapped_to] = $this->payload[$appFieldName];
                     }
                 }
-                $subscriptions = ApplicationTableSubscription::with([
-                    'databaseTable.database',
-                    'fieldMappings.applicationField',
-                ])->where('application_id', $app->id)->get();
-                //dump($subscriptions->count());
-                foreach ($subscriptions as $sub) {
-                    $dbConfig = $sub->databaseTable->database;
-                    $tableName = $sub->databaseTable->table_name;
-                    $consumer = $sub->consumer_group;
-                    //dump("sub id: {$sub->id}");
-                    $mapped = [];
-                    foreach ($sub->fieldMappings as $mapping) {
-                        $appFieldName = $mapping->applicationField->name;
-                        if (isset($this->payload[$appFieldName])) {
-                            $mapped[$mapping->mapped_to] = $this->payload[$appFieldName];
-                        }
-                    }
 
-                    if (empty($mapped)) {
-                        // nothing to insert for this table
-                        continue;
-                    }
-                    dump($mapped);
-                    // 6) Attempt to insert (or queue for retry)
-                    if ($this->isDatabaseServerReachable($dbConfig->host, $dbConfig->port)) {
-                        $this->insertIntoTable($dbConfig, $tableName, $mapped, $app->name, $rawData, $sentAt);
-                    } else {
-                        $this->holdForRetry($sub->id, $tableName, $mapped, $app->name, $rawData, $sentAt, );
-                    }
+                if (empty($mapped)) {
+                    // nothing to insert for this table
+                    continue;
                 }
-
+                // 6) Attempt to insert (or queue for retry)
+                if ($this->isDatabaseServerReachable($dbConfig->host, $dbConfig->port)) {
+                    $this->insertIntoTable($dbConfig, $tableName, $mapped, $app->name, $rawData, $sentAt);
+                } else {
+                    dump('hold for retry');
+                    $this->holdForRetry($sub->id, $tableName, $mapped, $app->name, $rawData, $sentAt, $dbConfig->host);
+                }
             }
 
         } catch (\Throwable $e) {
@@ -124,6 +99,7 @@ class ProcessStreamMessage implements ShouldQueue
 
     protected function insertIntoTable($db, string $table, array $mapped, string $source, array $rawData, Carbon $sentAt): void
     {
+        dump('inserting into table ' . $table . " " . $db->host);
         $pdo = new PDO(
             "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
             $db->username,
@@ -146,6 +122,7 @@ class ProcessStreamMessage implements ShouldQueue
             Log::create([
                 'source' => $source,
                 'destination' => $table,
+                'host' => $db->host,
                 'data_sent' => json_encode($rawData),
                 'data_received' => json_encode($mapped),
                 'sent_at' => $sentAt,
@@ -165,6 +142,7 @@ class ProcessStreamMessage implements ShouldQueue
         string $source,
         array $rawData,
         Carbon $sentAt,
+        string $host,
         string $error = 'database unreachable',
     ): void {
         // 1) key per‐subscription
@@ -187,6 +165,7 @@ class ProcessStreamMessage implements ShouldQueue
         \App\Models\Log::create([
             'source' => $source,
             'destination' => $table,
+            'host' => $host,
             'data_sent' => json_encode($rawData),
             'data_received' => json_encode([]),
             'sent_at' => $sentAt,

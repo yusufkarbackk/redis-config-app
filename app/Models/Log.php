@@ -14,7 +14,8 @@ class Log extends Model
         'data_sent',
         'data_received',
         'sent_at',
-        'received_at '
+        'received_at ',
+        'host'
     ];
 
     protected $casts = [
