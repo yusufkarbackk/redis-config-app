@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\TableResource\Pages;
 use App\Models\Application;
 use App\Models\ApplicationField;
+use App\Models\DatabaseConfig;
 use App\Models\DatabaseTable;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Section;
@@ -16,6 +17,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Log;
 use Str;
 
 class TableResource extends Resource
@@ -32,11 +34,51 @@ class TableResource extends Resource
                 Select::make('database_config_id')
                     ->label('Database')
                     ->relationship('database', 'name')
-                    ->required(),
+                    ->required()
+                    ->reactive(),
 
-                TextInput::make('table_name')
+                Select::make('table_name')
                     ->label('Table Name')
-                    ->required(),
+                    ->required()
+                    ->options(function (callable $get) {
+                        $databaseId = $get('database_config_id');
+                        if (!$databaseId) {
+                            return [];
+                        }
+                        Log::info('db id ', context: [$databaseId]);
+
+                        // Ambil config koneksi dari database (misal model DatabaseConfig)
+                        $dbConfig = DatabaseConfig::find($databaseId);
+                        if (!$dbConfig) {
+                            return [];
+                        }
+
+                        // Dekripsi password jika dienkripsi
+                        $password = decrypt($dbConfig->password);
+
+                        // Build config koneksi dinamis
+                        $config = [
+                            'driver' => $dbConfig->connection_type === 'pgsql' ? 'pgsql' : 'mysql',
+                            'host' => $dbConfig->host,
+                            'port' => $dbConfig->port,
+                            'database' => $dbConfig->database_name,
+                            'username' => $dbConfig->username,
+                            'password' => $password,
+                        ];
+                        Log::info('connection type', $config);
+
+                        try {
+                            config(['database.connections.temp_table_check' => $config]);
+                            $schema = \DB::connection('temp_table_check')->getDoctrineSchemaManager();
+                            $tables = $schema->listTableNames();
+                            \DB::purge('temp_table_check');
+                            // Buat array: ['table1' => 'table1', ...]
+                            return collect($tables)->mapWithKeys(fn($t) => [$t => $t])->toArray();
+                        } catch (\Throwable $e) {
+                            \DB::purge('temp_table_check');
+                            return [];
+                        }
+                    }),
 
                 Repeater::make('applicationSubscriptions')
                     ->label('Subscribed Applications')
@@ -44,7 +86,7 @@ class TableResource extends Resource
                     ->schema([
                         Select::make('application_id')
                             ->label('Application')
-                            ->options(Application::all()->pluck('name', 'id'))
+                            ->options(Application::all()->pluck('name', 'id')->toArray())
                             ->reactive()
                             ->required(),
 
@@ -71,9 +113,53 @@ class TableResource extends Resource
                                     })
                                     ->required(),
 
-                                TextInput::make('mapped_to')
+                                Select::make('mapped_to')
                                     ->label('Map To (Table Field)')
-                                    ->required(),
+                                    ->required()
+                                    ->options(function (callable $get) {
+                                        // 1. Fetch parameter parent
+                                        $databaseConfigId = $get('../../../../database_config_id');
+                                        $tableName = $get('../../../../table_name');
+
+                                        if (!$databaseConfigId || !$tableName) {
+                                            return [];
+                                        }
+
+                                        // 2. Fetch config (bisa di-cache kalau ingin)
+                                        $dbConfig = DatabaseConfig::find($databaseConfigId);
+                                        if (!$dbConfig) {
+                                            return [];
+                                        }
+
+                                        $password = decrypt($dbConfig->password);
+
+                                        // 3. Build config koneksi dinamis
+                                        $connectionKey = 'temp_table_check_' . md5($databaseConfigId . $tableName); // Unique per koneksi-table
+                                        $config = [
+                                            'driver' => $dbConfig->connection_type === 'pgsql' ? 'pgsql' : 'mysql',
+                                            'host' => $dbConfig->host,
+                                            'port' => $dbConfig->port,
+                                            'database' => $dbConfig->database_name,
+                                            'username' => $dbConfig->username,
+                                            'password' => $password,
+                                        ];
+
+                                        // 4. Caching (Opsional, pakai Laravel cache)
+                                        $cacheKey = "table_fields_{$databaseConfigId}_{$tableName}";
+                                        return cache()->remember($cacheKey, 60, function () use ($config, $tableName, $connectionKey) {
+                                            try {
+                                                config(['database.connections.' . $connectionKey => $config]);
+                                                $columns = \Schema::connection($connectionKey)->getColumnListing($tableName);
+                                                \DB::purge($connectionKey);
+                                                return collect($columns)->mapWithKeys(fn($c) => [$c => $c])->toArray();
+                                            } catch (\Throwable $e) {
+                                                \DB::purge($connectionKey);
+                                                return [];
+                                            }
+                                        });
+                                    })
+                                    ->reactive()
+                                ,
                             ]),
                     ]),
             ]),

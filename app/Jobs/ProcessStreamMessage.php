@@ -100,10 +100,11 @@ class ProcessStreamMessage implements ShouldQueue
     protected function insertIntoTable($db, string $table, array $mapped, string $source, array $rawData, Carbon $sentAt): void
     {
         dump('inserting into table ' . $table . " " . $db->host);
+        $dbPassword = decrypt($db->password);
         $pdo = new PDO(
             "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
             $db->username,
-            $db->password,
+            $dbPassword,
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
         );
         try {

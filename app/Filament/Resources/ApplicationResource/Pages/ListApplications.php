@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\ApplicationResource\Pages;
 
 use App\Filament\Resources\ApplicationResource;
-use App\Filament\Widgets\ApplicationsWidget;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 
@@ -21,7 +20,6 @@ class ListApplications extends ListRecords
     protected function getHeaderWidgets(): array
     {
         return [
-            ApplicationsWidget::class
         ];
     }
 }

@@ -51,9 +51,13 @@ class DatabaseConfigResource extends Resource
                         Forms\Components\TextInput::make('username')
                             ->required(),
                         Forms\Components\TextInput::make('password')
+                            ->label('Password')
                             ->password()
+                            ->dehydrateStateUsing(fn($state) => $state ? encrypt($state) : null) // Atau gunakan encrypt jika tidak hash
                             ->default('')
-                            ->dehydrated(true)
+                            ->dehydrated(fn($state) => filled($state)) // hanya update kalau field diisi
+                            ->helperText('Kosongkan jika tidak ingin mengubah password')
+                            ->autocomplete('new-password')
                     ])
                     ->columns(2)
             ]);
