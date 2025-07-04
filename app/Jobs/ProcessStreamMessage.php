@@ -40,7 +40,7 @@ class ProcessStreamMessage implements ShouldQueue
         dump("▶️  Processing message {$this->messageId}", $this->payload);
        
         try {
-            Log::info('Processing payload nih ges', $this->payload);
+            \Log::info('Processing payload nih ges', $this->payload);
             $app = Application::where('api_key', $this->payload['api_key'] ?? null)->first();
             if (!$app) {
                 Log::info('No such app found, dropping message');
@@ -91,7 +91,7 @@ class ProcessStreamMessage implements ShouldQueue
             }
 
         } catch (\Throwable $e) {
-            Log::error("Error finding application: {$e->getMessage()}");
+            \Log::error("Error finding application: {$e->getMessage()} {$e->getFile()}:{$e->getLine()}");
             return;
         }
     }
@@ -100,7 +100,7 @@ class ProcessStreamMessage implements ShouldQueue
     {
         dump('inserting into table ' . $table . " " . $db->host);
         $dbPassword = decrypt($db->password);
-        Log::info("Inserting connection type {$db->connection_type}");
+        \Log::info("Inserting connection type {$db->connection_type}");
         $pdo = new PDO(
             "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
             $db->username,
