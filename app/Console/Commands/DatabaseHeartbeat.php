@@ -32,7 +32,7 @@ class DatabaseHeartbeat extends Command
         foreach ($databases as $database) {
             $password = decrypt($database->password);
             $config = [
-                'driver' => $database->connection_type === 'PostgreSQL' ? 'pgsql' : 'mysql',
+                'driver' => $database->connection_type === 'pgsql' ? 'pgsql' : 'mysql',
                 'host' => $database->host,
                 'port' => $database->port,
                 'database' => $database->database_name,

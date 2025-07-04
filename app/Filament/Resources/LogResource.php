@@ -46,9 +46,8 @@ class LogResource extends Resource
             ->columns([
                 TextColumn::make('id')
                     ->sortable(),
-                BadgeColumn::make('source')
-                    ->colors(['primary']),
-                BadgeColumn::make('destination'),
+                TextColumn::make('source'),
+                TextColumn::make('destination'),
                 TextColumn::make('host')
                     ->label('Host'),
                 BadgeColumn::make('status')

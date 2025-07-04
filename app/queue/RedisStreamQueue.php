@@ -8,6 +8,7 @@ use Illuminate\Redis\Connections\Connection;
 use Illuminate\Support\Facades\Log;
 use Redis\Exception;
 
+
 use App\Jobs\ProcessStreamMessage;
 
 class RedisStreamQueue extends Queue implements QueueContract

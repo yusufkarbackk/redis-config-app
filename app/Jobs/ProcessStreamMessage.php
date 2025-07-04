@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Application;
 use App\Models\ApplicationTableSubscription;
 use App\Models\Log;
+use App\Models\ProjectHelper;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -35,18 +36,14 @@ class ProcessStreamMessage implements ShouldQueue
      */
     public function handle(): void
     {
+        $helper = new ProjectHelper();
         dump("▶️  Processing message {$this->messageId}", $this->payload);
-        \Log::info('Processing payload', $this->payload);
-        // 1) Find the sending App
-        $app = Application::where('api_key', $this->payload['api_key'] ?? null)->first();
-        if (!$app) {
-            // No such app → drop it
-            return;
-        }
+       
         try {
-            \Log::info('Processing payload', $this->payload);
+            Log::info('Processing payload nih ges', $this->payload);
             $app = Application::where('api_key', $this->payload['api_key'] ?? null)->first();
             if (!$app) {
+                Log::info('No such app found, dropping message');
                 return;
             }
 
@@ -83,8 +80,10 @@ class ProcessStreamMessage implements ShouldQueue
                     continue;
                 }
                 // 6) Attempt to insert (or queue for retry)
-                if ($this->isDatabaseServerReachable($dbConfig->host, $dbConfig->port)) {
+                if ($helper->isDatabaseServerReachable($dbConfig->host, $dbConfig->port)) {
                     $this->insertIntoTable($dbConfig, $tableName, $mapped, $app->name, $rawData, $sentAt);
+                    // 7) Log success
+                    $helper->createLog($app->name, $tableName, $dbConfig        , $rawData, $mapped, $sentAt);
                 } else {
                     dump('hold for retry');
                     $this->holdForRetry($sub->id, $tableName, $mapped, $app->name, $rawData, $sentAt, $dbConfig->host);
@@ -92,7 +91,7 @@ class ProcessStreamMessage implements ShouldQueue
             }
 
         } catch (\Throwable $e) {
-            \Log::error("Error finding application: {$e->getMessage()}");
+            Log::error("Error finding application: {$e->getMessage()}");
             return;
         }
     }
@@ -101,6 +100,7 @@ class ProcessStreamMessage implements ShouldQueue
     {
         dump('inserting into table ' . $table . " " . $db->host);
         $dbPassword = decrypt($db->password);
+        Log::info("Inserting connection type {$db->connection_type}");
         $pdo = new PDO(
             "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
             $db->username,
@@ -118,19 +118,6 @@ class ProcessStreamMessage implements ShouldQueue
             }
             $stmt->execute();
             $pdo->commit();
-
-            // 7) Log success
-            Log::create([
-                'source' => $source,
-                'destination' => $table,
-                'host' => $db->host,
-                'data_sent' => json_encode($rawData),
-                'data_received' => json_encode($mapped),
-                'sent_at' => $sentAt,
-                'received_at' => now(),
-                'status' => 'OK',
-                'message' => 'inserted successfully',
-            ]);
         } catch (\Throwable $e) {
             \Log::info("Error: {$e->getMessage()}");
         }
@@ -174,15 +161,5 @@ class ProcessStreamMessage implements ShouldQueue
             'status' => 'RETRY',
             'message' => "held for retry: {$error}",
         ]);
-    }
-
-    protected function isDatabaseServerReachable(string $host, int $port): bool
-    {
-        $conn = @fsockopen($host, $port, $errno, $errstr, 2);
-        if ($conn) {
-            fclose($conn);
-            return true;
-        }
-        return false;
     }
 }

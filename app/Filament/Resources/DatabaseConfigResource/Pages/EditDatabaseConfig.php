@@ -8,6 +8,7 @@ use Filament\Actions;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Log;
 
 class EditDatabaseConfig extends EditRecord
 {
@@ -39,12 +40,14 @@ class EditDatabaseConfig extends EditRecord
         // Ambil data form
         $formData = $this->form->getState();
         $password = $formData['password'] ?? null;
+
+        Log::info('Checking database connection with form data: ', $formData);
         if (empty($password)) {
             $password = decrypt($this->record->password);
         }
         //dd($password);
         // Tentukan driver sesuai pilihan user
-        $driver = $formData['connection_type'] === 'PostgreSQL' ? 'pgsql' : 'mysql';
+        $driver = $formData['connection_type'] === 'pgsql' ? 'pgsql' : 'mysql';
 
 
         $config = [

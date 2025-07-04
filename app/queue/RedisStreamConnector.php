@@ -4,6 +4,7 @@ namespace App\Queue;
 use Illuminate\Queue\Connectors\ConnectorInterface;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Redis;
+use App\queue\RedisStreamQueue;
 
 class RedisStreamConnector implements ConnectorInterface
 {

@@ -75,4 +75,9 @@ class CreateDatabaseConfig extends CreateRecord
             DB::purge('temp_check');
         }
     }
+
+    // public function getRedirectUrl(): string
+    // {
+    //     return 'admin/database-configs'; 
+    // }
 }
