@@ -115,7 +115,7 @@ class RetryFailedMessages extends Command
                         $cols = array_keys($data);
                         $ph = implode(',', array_fill(0, count($cols), '?'));
                         $sql = "INSERT INTO `$table` (" . implode(',', $cols) . ") VALUES ($ph)";
-
+                        $sent_at = now();
                         Log::info($sql);
                         Log::info("Retrying sub {$id} table {$table}: " . json_encode($data));
                         try {
@@ -131,7 +131,7 @@ class RetryFailedMessages extends Command
                                 'host' => $dbConf->host,
                                 'data_sent' => json_encode($payload['data']),
                                 'data_received' => json_encode($data),
-                                'sent_at' => now(),
+                                'sent_at' => $sent_at,
                                 'received_at' => now(),
                                 'status' => 'OK',
                                 'message' => 'retried',

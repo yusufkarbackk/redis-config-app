@@ -83,13 +83,12 @@ class ProcessStreamMessage implements ShouldQueue
                 if ($helper->isDatabaseServerReachable($dbConfig->host, $dbConfig->port)) {
                     $this->insertIntoTable($dbConfig, $tableName, $mapped, $app->name, $rawData, $sentAt);
                     // 7) Log success
-                    $helper->createLog($app->name, $tableName, $dbConfig        , $rawData, $mapped, $sentAt);
+                    $helper->createLog($app->name, $tableName, $dbConfig, $rawData, $mapped, $sentAt);
                 } else {
                     dump('hold for retry');
                     $this->holdForRetry($sub->id, $tableName, $mapped, $app->name, $rawData, $sentAt, $dbConfig->host);
                 }
             }
-
         } catch (\Throwable $e) {
             \Log::error("Error finding application: {$e->getMessage()} {$e->getFile()}:{$e->getLine()}");
             return;
@@ -110,7 +109,7 @@ class ProcessStreamMessage implements ShouldQueue
         try {
             $cols = implode(', ', array_keys($mapped));
             $ph = implode(', ', array_map(fn($c) => ":{$c}", array_keys($mapped)));
-
+            \Log::info("Inserting into table {$table}: ", [$mapped, $cols, $ph]);
             $pdo->beginTransaction();
             $stmt = $pdo->prepare("INSERT INTO {$table} ({$cols}) VALUES ({$ph})");
             foreach ($mapped as $col => $val) {
@@ -119,7 +118,7 @@ class ProcessStreamMessage implements ShouldQueue
             $stmt->execute();
             $pdo->commit();
         } catch (\Throwable $e) {
-            \Log::info("Error: {$e->getMessage()}");
+            \Log::info("Error: {$e->getMessage()}");    
         }
     }
 

@@ -37,8 +37,7 @@ class CreateDatabaseConfig extends CreateRecord
         $driver = $formData['connection_type'] === 'pgsql' ? 'pgsql' : 'mysql';
         Log::info('connection type', [$formData['connection_type']]);
 
-        // Untuk password: gunakan password lama jika field kosong
-        $password = $formData['password'] ?: $this->record->password;
+        
 
         $config = [
             'driver' => $driver,

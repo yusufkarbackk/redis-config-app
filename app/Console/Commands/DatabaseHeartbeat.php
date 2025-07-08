@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\DatabaseConfig;
 use DB;
 use Illuminate\Console\Command;
+use Log;
 
 class DatabaseHeartbeat extends Command
 {
@@ -27,6 +28,7 @@ class DatabaseHeartbeat extends Command
      */
     public function handle()
     {
+        Log::info('Starting database heartbeat check');
         $databases = DatabaseConfig::all();
 
         foreach ($databases as $database) {

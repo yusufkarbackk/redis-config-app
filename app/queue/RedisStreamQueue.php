@@ -50,7 +50,7 @@ class RedisStreamQueue extends Queue implements QueueContract
             $this->group,
             $this->consumer,
             [$this->stream => '>'],
-            1,   // COUNT
+            10,   // COUNT
             0    // BLOCK ms (0 = blok selamanya)
         );
 
