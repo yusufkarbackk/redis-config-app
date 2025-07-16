@@ -31,21 +31,25 @@ class CreateDatabaseConfig extends CreateRecord
 
     public function checkDatabaseConnection()
     {
+
         // Ambil data form
         $formData = $this->form->getState();
+        if (!isset($formData['password'])) {
+            $formData['password'] = ""; 
+        }
         // Tentukan driver sesuai pilihan user
-        $driver = $formData['connection_type'] === 'pgsql' ? 'pgsql' : 'mysql';
-        Log::info('connection type', [$formData['connection_type']]);
-
-        
+        // $driver = $formData['connection_type'] === 'pgsql' ? 'pgsql' : 'mysql';
+        //Log::info('connection type', [$formData['connection_type']]);
+        //dd($formData);
+        $password = $formData['password'] == null ? '' : decrypt($formData['password']);
 
         $config = [
-            'driver' => $driver,
+            'driver' => $formData['connection_type'],
             'host' => $formData['host'],
             'port' => $formData['port'],
             'database' => $formData['database_name'],
             'username' => $formData['username'],
-            'password' => decrypt($formData['password']), // Decrypt password jika diperlukan
+            'password' => $password, // Decrypt password jika diperlukan
         ];
         //dd($config);
         Log::info('Checking database connection with config: ', $config);

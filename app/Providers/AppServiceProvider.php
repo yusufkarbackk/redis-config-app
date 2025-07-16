@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\queue\RedisStreamConnector;
+use App\Queue\RedisStreamUpdateConnector;
 use Illuminate\Queue\QueueManager;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Database\Eloquent\Model;
@@ -24,9 +25,13 @@ class AppServiceProvider extends ServiceProvider
     public function boot(QueueManager $manager): void
     {
         Model::unguard();
-        
+
         $manager->addConnector('redis-stream', function () {
             return new RedisStreamConnector;
+        });
+
+        $manager->addConnector('redis-stream', function () {
+            return new RedisStreamUpdateConnector;
         });
     }
 }

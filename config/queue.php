@@ -77,6 +77,14 @@ return [
             'consumer' => 'consumer-' . Str::random(8),
         ],
 
+        'redis-update-stream' => [
+            'driver' => 'redis-update-stream',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'stream' => env('REDIS_UNIFIED_UPDATE_STREAM', 'app:data:update:stream'),
+            'group' => env('REDIS_STREAM_GROUP', 'stream-workers'),
+            'consumer' => 'consumer-' . Str::random(8),
+        ],
+
     ],
 
     /*

@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Route;
 |
 */
 Route::post('/data', [DataController::class, 'store']);
+Route::patch('/data/{data_id}', [DataController::class, 'update']); // Assuming data_id is alphanumeric
 
 Route::get('/redis-check', [DataController::class, 'redisCheck']);
 

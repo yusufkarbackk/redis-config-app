@@ -14,6 +14,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Redis;
 use PDO;
+use Str;
 
 class ProcessStreamMessage implements ShouldQueue
 {
@@ -37,10 +38,11 @@ class ProcessStreamMessage implements ShouldQueue
     public function handle(): void
     {
         $helper = new ProjectHelper();
-        dump("▶️  Processing message {$this->messageId}", $this->payload);
-       
+        dump("▶️  Processing message nih ya {$this->messageId}");
+
         try {
             \Log::info('Processing payload nih ges', $this->payload);
+            $dataId = Str::random(8);
             $app = Application::where('api_key', $this->payload['api_key'] ?? null)->first();
             if (!$app) {
                 Log::info('No such app found, dropping message');
@@ -54,7 +56,7 @@ class ProcessStreamMessage implements ShouldQueue
             $rawData = collect($this->payload)
                 ->except(['api_key', 'enqueued_at'])
                 ->toArray();
-
+            //dd($rawData);
             // 4) Load all table subscriptions for this app
             $subscriptions = ApplicationTableSubscription::with([
                 'databaseTable.database',
@@ -64,8 +66,7 @@ class ProcessStreamMessage implements ShouldQueue
             foreach ($subscriptions as $sub) {
                 $dbConfig = $sub->databaseTable->database;
                 $tableName = $sub->databaseTable->table_name;
-                $consumer = $sub->consumer_group;
-                dump("sub id: {$sub->id}");
+                // dump("sub id: {$sub->id}");
                 // 5) Build the mapped payload for this table
                 $mapped = [];
                 foreach ($sub->fieldMappings as $mapping) {
@@ -74,7 +75,8 @@ class ProcessStreamMessage implements ShouldQueue
                         $mapped[$mapping->mapped_to] = $this->payload[$appFieldName];
                     }
                 }
-
+                $mapped['data_id'] = $dataId;
+                //dd($mapped);
                 if (empty($mapped)) {
                     // nothing to insert for this table
                     continue;
@@ -90,35 +92,45 @@ class ProcessStreamMessage implements ShouldQueue
                 }
             }
         } catch (\Throwable $e) {
-            \Log::error("Error finding application: {$e->getMessage()} {$e->getFile()}:{$e->getLine()}");
+            \Log::error("{$e->getMessage()} {$e->getFile()}:{$e->getLine()}");
             return;
         }
     }
 
     protected function insertIntoTable($db, string $table, array $mapped, string $source, array $rawData, Carbon $sentAt): void
     {
-        dump('inserting into table ' . $table . " " . $db->host);
-        $dbPassword = decrypt($db->password);
-        \Log::info("Inserting connection type {$db->connection_type}");
-        $pdo = new PDO(
-            "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
-            $db->username,
-            $dbPassword,
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-        );
+        \Log::info('Inserting into table ');
         try {
+            dump('inserting into table ' . $table . " " . $db->host);
+            dump($mapped);
+            dump("DB Password: {$db->password}");
+
+            $dbPassword = $db->password != null ? decrypt($db->password) : '';
+            \Log::info("Inserting connection type {$db->connection_type}");
+            $pdo = new PDO(
+                "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
+                $db->username,
+                $dbPassword,
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            );
+
             $cols = implode(', ', array_keys($mapped));
             $ph = implode(', ', array_map(fn($c) => ":{$c}", array_keys($mapped)));
-            \Log::info("Inserting into table {$table}: ", [$mapped, $cols, $ph]);
+            dump("Cols: {$cols}");
+            dump("Placeholders {$ph}");
+            //die();
+            //\Log::info("Inserting into table {$table}: ", [$mapped, $cols, $ph]);
             $pdo->beginTransaction();
             $stmt = $pdo->prepare("INSERT INTO {$table} ({$cols}) VALUES ({$ph})");
+            dump($stmt);
+            //die();
             foreach ($mapped as $col => $val) {
                 $stmt->bindValue(":{$col}", $val);
             }
             $stmt->execute();
             $pdo->commit();
         } catch (\Throwable $e) {
-            \Log::info("Error: {$e->getMessage()}");    
+            \Log::error("Error: {$e->getMessage()} {$e->getFile()}:{$e->getLine()}");
         }
     }
 

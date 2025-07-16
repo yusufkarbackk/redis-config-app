@@ -45,8 +45,8 @@ class TableResource extends Resource
                         if (!$databaseId) {
                             return [];
                         }
-                        Log::info('db id ', context: [$databaseId]);
-
+                        //Log::info('db id ', context: [$databaseId]);
+            
                         // Ambil config koneksi dari database (misal model DatabaseConfig)
                         $dbConfig = DatabaseConfig::find($databaseId);
                         if (!$dbConfig) {
@@ -54,7 +54,7 @@ class TableResource extends Resource
                         }
 
                         // Dekripsi password jika dienkripsi
-                        $password = decrypt($dbConfig->password);
+                        $password = $dbConfig->password ? decrypt($dbConfig->password) : '';
 
                         // Build config koneksi dinamis
                         $config = [
@@ -131,8 +131,8 @@ class TableResource extends Resource
                                             return [];
                                         }
 
-                                        $password = decrypt($dbConfig->password);
-
+                                        // Dekripsi password jika dienkripsi
+                                        $password = $dbConfig->password ? decrypt($dbConfig->password) : '';
                                         // 3. Build config koneksi dinamis
                                         $connectionKey = 'temp_table_check_' . md5($databaseConfigId . $tableName); // Unique per koneksi-table
                                         $config = [

@@ -15,6 +15,7 @@ use Filament\Tables\Table;
 use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Symfony\Contracts\Service\Attribute\Required;
 
 class DatabaseConfigResource extends Resource
 {
@@ -58,6 +59,7 @@ class DatabaseConfigResource extends Resource
                             ->dehydrated(fn($state) => filled($state)) // hanya update kalau field diisi
                             ->helperText('Kosongkan jika tidak ingin mengubah password')
                             ->autocomplete('new-password')
+                            ->required(app()->environment('production')),
                     ])
                     ->columns(2)
             ]);

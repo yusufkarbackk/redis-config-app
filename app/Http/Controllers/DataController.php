@@ -13,21 +13,71 @@ class DataController extends Controller
 {
     public function store(Request $request)
     {
-
-        //validate API key
-
         $apiKey = $request->header('X-API-Key');
 
         $application = Application::where('api_key', $apiKey)->select(['name', 'api_key', 'id'])->firstOrFail();
         $validFields = $application->applicationFields()->pluck('name')->toArray();
-
+       
         $id = $application->getAttributes()['api_key'];
         $streamKey = "app:data:stream";
 
         $filteredData = $request->only($validFields);
+        
         $filteredData['enqueued_at'] = Carbon::now()->toIso8601String();
         $filteredData['api_key'] = $id;
         //dd($streamKey);
+        try {
+            $prodConn = Redis::connection();        // objek Illuminate\Redis…\Connection
+            $client = $prodConn->client();
+
+            $prodcfg = $client->getHost() . ':' . $client->getPort();
+            \Log::info("Redis connection established: {$prodcfg}");
+            $MessageId = $client->xadd(
+                $streamKey,     // e.g. "app:data:stream"
+                '*',
+                $filteredData
+            );
+           
+            return response()->json([
+                'message' => 'Data received and queued',
+                'message_id' => $MessageId,
+                "data" => $filteredData,
+            ]);
+        } catch (\Throwable $th) {
+
+            return response()->json([
+                'message' => $th->getMessage(),
+                "line" => $th->getLine(),
+                "file" => $th->getFile(),
+            ]);
+        }
+    }
+
+    public function update(Request $request, $dataId)
+    {
+        $apiKey = $request->header('X-API-Key');
+        $application = Application::where('api_key', $apiKey)->select(['name', 'api_key', 'id'])->firstOrFail();
+        $validFields = $application->applicationFields()->pluck('name')->toArray();
+        
+        $id = $application->getAttributes()['api_key'];
+        $streamKey = "app:data:update:stream";
+
+        $filteredData = $request->only($validFields);
+        // return response()->json([
+        //     'message' => 'Update method is not implemented yet',
+        //     'data' => $filteredData,
+        // ]);
+        $filteredData['enqueued_at'] = Carbon::now()->toIso8601String();
+        $filteredData['api_key'] = $id;
+        $filteredData['data_id'] = $dataId; // Include the data_id in the payload
+
+        // return response()->json([
+        //     'message' => 'Update',
+        //     'data' => $filteredData,
+        // ]);
+        //$filteredData['data_id'] = $request;
+        // i
+        //die();
         try {
             $prodConn = Redis::connection();        // objek Illuminate\Redis…\Connection
             $client = $prodConn->client();
