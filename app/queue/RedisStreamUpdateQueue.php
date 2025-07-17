@@ -2,6 +2,7 @@
 
 namespace App\Queue;
 
+use App\Jobs\UpdateStreamMessage;
 use Illuminate\Queue\Queue;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
 use Illuminate\Redis\Connections\Connection;
@@ -46,6 +47,8 @@ class RedisStreamUpdateQueue extends Queue implements QueueContract
     /** Ambil 1 pesan berikutnya */
     public function pop($queue = null)
     {
+        dump($this->stream);
+        dump($this->group);
         $messages = $this->client->xReadGroup(
             $this->group,
             $this->consumer,
@@ -61,12 +64,12 @@ class RedisStreamUpdateQueue extends Queue implements QueueContract
         dump($messages);
 
         foreach ($messages[$this->stream] as $id => $fields) {
-            dump($fields); // Debug: tampilkan fields
+            //dump($fields); // Debug: tampilkan fields
             // Kirim ke Job Laravel biasa
             try {
-                \Log::info('Dispatching job for message ID: ' . $id);
-                dump(ProcessStreamMessage::dispatch($id, $fields)
-                    ->onConnection('redis')   // worker redis biasa
+                \Log::info('Dispatching update job for message ID: ' . $id);
+                dump(UpdateStreamMessage::dispatch($id, $fields)
+                    ->onConnection('redis')   // worker redis-update-stream
                     ->onQueue('redis'));
             } catch (\Throwable $th) {
                 //throw $th;

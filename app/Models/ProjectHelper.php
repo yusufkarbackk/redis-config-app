@@ -28,7 +28,7 @@ class ProjectHelper extends Model
         );
     }
 
-    public function createLog(string $source, string $table, $db, array $rawData, array $mapped, Carbon $sentAt): void
+    public function createLog(string $source, string $table, $db, array $rawData, array $mapped, Carbon $sentAt, $message = 'inserted successfully'): void
     {
         Log::create([
             'source' => $source,
@@ -40,7 +40,7 @@ class ProjectHelper extends Model
             'received_at' => now(),
             'status' => 'OK',
             // 'data_id' => ,
-            'message' => 'inserted successfully',
+            'message' => $message,
         ]);
     }
 }

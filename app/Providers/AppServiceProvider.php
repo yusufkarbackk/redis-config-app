@@ -30,7 +30,7 @@ class AppServiceProvider extends ServiceProvider
             return new RedisStreamConnector;
         });
 
-        $manager->addConnector('redis-stream', function () {
+        $manager->addConnector('redis-update-stream', function () {
             return new RedisStreamUpdateConnector;
         });
     }
