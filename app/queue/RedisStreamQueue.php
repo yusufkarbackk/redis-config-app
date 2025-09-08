@@ -27,6 +27,7 @@ class RedisStreamQueue extends Queue implements QueueContract
         $this->stream = $stream;
         $this->group = $group;
         $this->consumer = $consumer;
+        dump($this->client);
 
         // Pastikan consumer-group ada
         try {
@@ -54,6 +55,8 @@ class RedisStreamQueue extends Queue implements QueueContract
             0    // BLOCK ms (0 = blok selamanya)
         );
 
+        dump($messages);
+
         if (!$messages || !isset($messages[$this->stream])) {
             return null;
         }
@@ -64,13 +67,13 @@ class RedisStreamQueue extends Queue implements QueueContract
             dump($fields); // Debug: tampilkan fields
             // Kirim ke Job Laravel biasa
             try {
-                \Log::info('Dispatching job for message ID: ' . $id);
+                Log::info('Dispatching job for message ID: ' . $id);
                 dump(ProcessStreamMessage::dispatch($id, $fields)
                     ->onConnection('redis')   // worker redis biasa
                     ->onQueue('redis'));
             } catch (\Throwable $th) {
                 //throw $th;
-                \Log::error('Failed to dispatch job: ' . $th->getMessage() . $th->getFile() . ':' . $th->getLine());
+                Log::error('Failed to dispatch job: ' . $th->getMessage() . $th->getFile() . ':' . $th->getLine());
             }
             // ACK supaya tidak diulang
             $this->client->xAck($this->stream, $this->group, [$id]);
@@ -84,21 +87,15 @@ class RedisStreamQueue extends Queue implements QueueContract
     /**
      * @inheritDoc
      */
-    public function later($delay, $job, $data = '', $queue = null)
-    {
-    }
+    public function later($delay, $job, $data = '', $queue = null) {}
 
     /**
      * @inheritDoc
      */
-    public function push($job, $data = '', $queue = null)
-    {
-    }
+    public function push($job, $data = '', $queue = null) {}
 
     /**
      * @inheritDoc
      */
-    public function size($queue = null)
-    {
-    }
+    public function size($queue = null) {}
 }

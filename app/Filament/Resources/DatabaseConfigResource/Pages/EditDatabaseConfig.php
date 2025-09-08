@@ -8,7 +8,8 @@ use Filament\Actions;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
-use Log;
+use Illuminate\Support\Facades\DB as FacadesDB;
+use Illuminate\Support\Facades\Log;
 
 class EditDatabaseConfig extends EditRecord
 {
@@ -39,24 +40,36 @@ class EditDatabaseConfig extends EditRecord
     {
         // Ambil data form
         $formData = $this->form->getState();
-        $password = $formData['password'] ?? null;
 
-        Log::info('Checking database connection with form data: ', $formData);
-        if (empty($password)) {
-            $password = decrypt($this->record->password);
+
+        //  dd($formData);
+        if (!isset($formData['password'])) {
+            if ($this->record->password == "") {
+                $formData['password'] = "";
+            } else {
+                $formData['password'] = decrypt($this->record->password);
+            }
         }
+        else {
+            $formData['password'] = decrypt($formData['password']);
+        }
+
+        // Log::info('Checking database connection with form data: ', $formData);
+        // if (empty($password)) {
+        //     $password = decrypt($this->record->password);
+        // }
         //dd($password);
         // Tentukan driver sesuai pilihan user
-        $driver = $formData['connection_type'] === 'pgsql' ? 'pgsql' : 'mysql';
+        //$driver = $formData['connection_type'] === 'pgsql' ? 'pgsql' : 'mysql';
 
 
         $config = [
-            'driver' => $driver,
+            'driver' => $formData['connection_type'],
             'host' => $formData['host'],
             'port' => $formData['port'],
             'database' => $formData['database_name'],
             'username' => $formData['username'],
-            'password' => $password,
+            'password' => $formData['password'], // Decrypt password jika diperlukan
         ];
 
         try {
@@ -66,7 +79,7 @@ class EditDatabaseConfig extends EditRecord
             ]);
 
             // Test koneksi
-            DB::connection('temp_check')->getPdo();
+            FacadesDB::connection('temp_check')->getPdo();
 
             Notification::make()
                 ->title('Koneksi Berhasil')
@@ -81,7 +94,7 @@ class EditDatabaseConfig extends EditRecord
                 ->send();
         } finally {
             // Bersihkan koneksi agar tidak mengganggu koneksi lain
-            DB::purge('temp_check');
+            FacadesDB::purge('temp_check');
         }
     }
 }

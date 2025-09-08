@@ -12,6 +12,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log as FacadesLog;
 use Illuminate\Support\Facades\Redis;
 use PDO;
 use Str;
@@ -41,7 +42,7 @@ class ProcessStreamMessage implements ShouldQueue
         dump("▶️  Processing message nih ya {$this->messageId}");
 
         try {
-            \Log::info('Processing payload nih ges', $this->payload);
+            FacadesLog::info('Processing payload nih ges', $this->payload);
             $dataId = Str::random(8);
             $app = Application::where('api_key', $this->payload['api_key'] ?? null)->first();
             if (!$app) {
@@ -75,7 +76,7 @@ class ProcessStreamMessage implements ShouldQueue
                         $mapped[$mapping->mapped_to] = $this->payload[$appFieldName];
                     }
                 }
-                $mapped['data_id'] = $dataId;
+                //$mapped['data_id'] = $dataId;
                 //dd($mapped);
                 if (empty($mapped)) {
                     // nothing to insert for this table
@@ -92,21 +93,21 @@ class ProcessStreamMessage implements ShouldQueue
                 }
             }
         } catch (\Throwable $e) {
-            \Log::error("{$e->getMessage()} {$e->getFile()}:{$e->getLine()}");
+            FacadesLog::error("{$e->getMessage()} {$e->getFile()}:{$e->getLine()}");
             return;
         }
     }
 
     protected function insertIntoTable($db, string $table, array $mapped, string $source, array $rawData, Carbon $sentAt): void
     {
-        \Log::info('Inserting into table ');
+        FacadesLog::info('Inserting into table ');
         try {
             dump('inserting into table ' . $table . " " . $db->host);
             dump($mapped);
             dump("DB Password: {$db->password}");
 
             $dbPassword = $db->password != null ? decrypt($db->password) : '';
-            \Log::info("Inserting connection type {$db->connection_type}");
+            FacadesLog::info("Inserting connection type {$db->connection_type}");
             $pdo = new PDO(
                 "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
                 $db->username,
@@ -130,7 +131,7 @@ class ProcessStreamMessage implements ShouldQueue
             $stmt->execute();
             $pdo->commit();
         } catch (\Throwable $e) {
-            \Log::error("Error: {$e->getMessage()} {$e->getFile()}:{$e->getLine()}");
+            FacadesLog::error("Error: {$e->getMessage()} {$e->getFile()}:{$e->getLine()}");
         }
     }
 

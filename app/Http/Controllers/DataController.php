@@ -7,6 +7,8 @@ use App\Models\Log;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redis;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log as FacadesLog;
+
 use function PHPSTORM_META\type;
 
 class DataController extends Controller
@@ -17,32 +19,31 @@ class DataController extends Controller
 
         $application = Application::where('api_key', $apiKey)->select(['name', 'api_key', 'id'])->firstOrFail();
         $validFields = $application->applicationFields()->pluck('name')->toArray();
-       
-        $id = $application->getAttributes()['api_key'];
+
         $streamKey = "app:data:stream";
 
         $filteredData = $request->only($validFields);
-        
+
         $filteredData['enqueued_at'] = Carbon::now()->toIso8601String();
-        $filteredData['api_key'] = $id;
+        $filteredData['api_key'] = $application->getAttributes()['api_key'];
         //dd($streamKey);
         try {
             $prodConn = Redis::connection();        // objek Illuminate\Redis…\Connection
             $client = $prodConn->client();
 
-            $prodcfg = $client->getHost() . ':' . $client->getPort();
-            \Log::info("Redis connection established: {$prodcfg}");
+            //$client . ':' . $client->getPort();
+            //FacadesLog::info("Redis connection established: {$client}");
             $MessageId = $client->xadd(
                 $streamKey,     // e.g. "app:data:stream"
                 '*',
                 $filteredData
             );
-           
+
             return response()->json([
                 'message' => 'Data received and queued',
                 'message_id' => $MessageId,
                 "data" => $filteredData,
-            ]);
+            ], 202);
         } catch (\Throwable $th) {
 
             return response()->json([
@@ -58,7 +59,7 @@ class DataController extends Controller
         $apiKey = $request->header('X-API-Key');
         $application = Application::where('api_key', $apiKey)->select(['name', 'api_key', 'id'])->firstOrFail();
         $validFields = $application->applicationFields()->pluck('name')->toArray();
-        
+
         $id = $application->getAttributes()['api_key'];
         $streamKey = "app:data:update:stream";
 
@@ -83,7 +84,7 @@ class DataController extends Controller
             $client = $prodConn->client();
 
             $prodcfg = $client->getHost() . ':' . $client->getPort();
-            \Log::info("Redis connection established: {$prodcfg}");
+            FacadesLog::info("Redis connection established: {$prodcfg}");
             $MessageId = $client->xadd(
                 $streamKey,     // e.g. "app:data:stream"
                 '*',
@@ -128,7 +129,6 @@ class DataController extends Controller
                 'keys' => $keys,
                 'current_master' => $masterAddress
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',

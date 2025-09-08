@@ -9,7 +9,8 @@ use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
-use Log;
+use Illuminate\Support\Facades\DB as FacadesDB;
+use Illuminate\Support\Facades\Log;
 
 class CreateDatabaseConfig extends CreateRecord
 {
@@ -34,14 +35,16 @@ class CreateDatabaseConfig extends CreateRecord
 
         // Ambil data form
         $formData = $this->form->getState();
-        if (!isset($formData['password'])) {
-            $formData['password'] = ""; 
-        }
+        // if (!isset($formData['password'])) {
+        //     $formData['password'] = ""; 
+        // }
         // Tentukan driver sesuai pilihan user
         // $driver = $formData['connection_type'] === 'pgsql' ? 'pgsql' : 'mysql';
         //Log::info('connection type', [$formData['connection_type']]);
         //dd($formData);
-        $password = $formData['password'] == null ? '' : decrypt($formData['password']);
+
+        $password = !isset($formData['password']) || $formData['password'] == null ? '' : decrypt($formData['password']);
+        //$password = $formData['password'] == "" ? '' : decrypt($formData['password']);
 
         $config = [
             'driver' => $formData['connection_type'],
@@ -60,7 +63,7 @@ class CreateDatabaseConfig extends CreateRecord
             ]);
 
             // Test koneksi
-            DB::connection('temp_check')->getPdo();
+            FacadesDB::connection('temp_check')->getPdo();
 
             Notification::make()
                 ->title('Koneksi Berhasil')
@@ -75,7 +78,7 @@ class CreateDatabaseConfig extends CreateRecord
                 ->send();
         } finally {
             // Bersihkan koneksi agar tidak mengganggu koneksi lain
-            DB::purge('temp_check');
+            FacadesDB::purge('temp_check');
         }
     }
 
