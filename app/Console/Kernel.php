@@ -2,6 +2,7 @@
 
 namespace App\Console;
 
+use App\Console\Commands\DbTest;
 use App\Console\Commands\ListenToStream;
 use Illuminate\Console\Command;
 use Illuminate\Console\Scheduling\Schedule;
@@ -16,6 +17,7 @@ class Kernel extends ConsoleKernel
 
     protected $commands = [
         ListenToStream::class,
+        DbTest::class,
     ];
 
 

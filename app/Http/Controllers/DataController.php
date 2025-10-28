@@ -26,6 +26,7 @@ class DataController extends Controller
 
         $filteredData['enqueued_at'] = Carbon::now()->toIso8601String();
         $filteredData['api_key'] = $application->getAttributes()['api_key'];
+        FacadesLog::info($application->getAttributes()['api_key']);
         //dd($streamKey);
         try {
             $prodConn = Redis::connection();        // objek Illuminate\Redis…\Connection

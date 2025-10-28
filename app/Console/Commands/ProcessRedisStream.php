@@ -76,9 +76,12 @@ class ListenToStream extends Command
                 }
 
                 $processedIds = [];
+                $this->info($processedIds);
                 foreach ($messages[$streamKey] as $id => $fields) {
                     // Kirim Job ke antrian Redis default.
                     // Ini adalah inti dari pendelegasian tugas.
+                    $this->info('stream-messages', $fields);
+
                     ProcessStreamMessage::dispatch($id, $fields)
                         ->onConnection('redis') // Pastikan worker Anda berjalan di koneksi redis
                         ->onQueue('redis');   // Anda bisa ganti nama queue jika perlu
@@ -91,6 +94,7 @@ class ListenToStream extends Command
                 // ini lebih efisien daripada ACK satu per satu.
                 if (!empty($processedIds)) {
                     Redis::xack($streamKey, $groupName, $processedIds);
+                    $this->info('oke');
                     $this->info(count($processedIds) . ' jobs dispatched to the queue.');
                 }
             } catch (Throwable $e) {

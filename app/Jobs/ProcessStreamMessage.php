@@ -42,11 +42,13 @@ class ProcessStreamMessage implements ShouldQueue
         dump("▶️  Processing message nih ya {$this->messageId}");
 
         try {
-            FacadesLog::info('Processing payload nih ges', $this->payload);
+            //FcadesLog::info('Processing payload nih ges', $this->payload['api_key'] ?? []);
+            FacadesLog::info('Processing payload', $this->payload);
             $dataId = Str::random(8);
-            $app = Application::where('api_key', $this->payload['api_key'] ?? null)->first();
+            $app = Application::where('api_key', $this->payload['api_key'])->first();
+            FacadesLog::info('Application found', ['app' => $app]);
             if (!$app) {
-                Log::info('No such app found, dropping message');
+                FacadesLog::info('No such app found, dropping message');
                 return;
             }
 
@@ -93,7 +95,15 @@ class ProcessStreamMessage implements ShouldQueue
                 }
             }
         } catch (\Throwable $e) {
-            FacadesLog::error("{$e->getMessage()} {$e->getFile()}:{$e->getLine()}");
+            FacadesLog::info("lah error");
+            Facadeslog::error("Job processing failed", [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                // Sangat direkomendasikan untuk menyertakan objek exception
+                // agar Anda mendapatkan stack trace lengkap di log.
+                'exception' => $e
+            ]);
             return;
         }
     }
@@ -131,6 +141,7 @@ class ProcessStreamMessage implements ShouldQueue
             $stmt->execute();
             $pdo->commit();
         } catch (\Throwable $e) {
+            FacadesLog::info('error insert');
             FacadesLog::error("Error: {$e->getMessage()} {$e->getFile()}:{$e->getLine()}");
         }
     }
