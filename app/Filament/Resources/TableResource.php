@@ -17,8 +17,10 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Log;
-use Str;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class TableResource extends Resource
 {
@@ -46,7 +48,7 @@ class TableResource extends Resource
                             return [];
                         }
                         //Log::info('db id ', context: [$databaseId]);
-            
+
                         // Ambil config koneksi dari database (misal model DatabaseConfig)
                         $dbConfig = DatabaseConfig::find($databaseId);
                         if (!$dbConfig) {
@@ -57,25 +59,44 @@ class TableResource extends Resource
                         $password = $dbConfig->password ? decrypt($dbConfig->password) : '';
 
                         // Build config koneksi dinamis
-                        $config = [
-                            'driver' => $dbConfig->connection_type === 'pgsql' ? 'pgsql' : 'mysql',
-                            'host' => $dbConfig->host,
-                            'port' => $dbConfig->port,
-                            'database' => $dbConfig->database_name,
-                            'username' => $dbConfig->username,
-                            'password' => $password,
-                        ];
+                        if ($dbConfig->connection_type === 'pgsql') {
+                            $config = [
+                                'driver' => 'pgsql',
+                                'host' => $dbConfig->host,
+                                'port' => $dbConfig->port,
+                                'database' => $dbConfig->database_name,
+                                'username' => $dbConfig->username,
+                                'password' => $password,
+                                'charset' => 'utf8',
+                                'prefix' => '',
+                                'prefix_indexes' => true,
+                                'search_path' => 'public',
+                            ];
+                        } else {
+                            $config = [
+                                'driver' => 'mysql',
+                                'host' => $dbConfig->host,
+                                'port' => $dbConfig->port,
+                                'database' => $dbConfig->database_name,
+                                'username' => $dbConfig->username,
+                                'password' => $password,
+                                'charset' => 'utf8mb4',
+                                'collation' => 'utf8mb4_unicode_ci',
+                                'prefix' => '',
+                                'prefix_indexes' => true,
+                            ];
+                        }
                         Log::info('connection type', $config);
 
                         try {
                             config(['database.connections.temp_table_check' => $config]);
-                            $schema = \DB::connection('temp_table_check')->getDoctrineSchemaManager();
+                            $schema = DB::connection('temp_table_check')->getDoctrineSchemaManager();
                             $tables = $schema->listTableNames();
-                            \DB::purge('temp_table_check');
+                            DB::purge('temp_table_check');
                             // Buat array: ['table1' => 'table1', ...]
                             return collect($tables)->mapWithKeys(fn($t) => [$t => $t])->toArray();
                         } catch (\Throwable $e) {
-                            \DB::purge('temp_table_check');
+                            DB::purge('temp_table_check');
                             return [];
                         }
                     }),
@@ -135,31 +156,49 @@ class TableResource extends Resource
                                         $password = $dbConfig->password ? decrypt($dbConfig->password) : '';
                                         // 3. Build config koneksi dinamis
                                         $connectionKey = 'temp_table_check_' . md5($databaseConfigId . $tableName); // Unique per koneksi-table
-                                        $config = [
-                                            'driver' => $dbConfig->connection_type === 'pgsql' ? 'pgsql' : 'mysql',
-                                            'host' => $dbConfig->host,
-                                            'port' => $dbConfig->port,
-                                            'database' => $dbConfig->database_name,
-                                            'username' => $dbConfig->username,
-                                            'password' => $password,
-                                        ];
+                                        if ($dbConfig->connection_type === 'pgsql') {
+                                            $config = [
+                                                'driver' => 'pgsql',
+                                                'host' => $dbConfig->host,
+                                                'port' => $dbConfig->port,
+                                                'database' => $dbConfig->database_name,
+                                                'username' => $dbConfig->username,
+                                                'password' => $password,
+                                                'charset' => 'utf8',
+                                                'prefix' => '',
+                                                'prefix_indexes' => true,
+                                                'search_path' => 'public',
+                                            ];
+                                        } else {
+                                            $config = [
+                                                'driver' => 'mysql',
+                                                'host' => $dbConfig->host,
+                                                'port' => $dbConfig->port,
+                                                'database' => $dbConfig->database_name,
+                                                'username' => $dbConfig->username,
+                                                'password' => $password,
+                                                'charset' => 'utf8mb4',
+                                                'collation' => 'utf8mb4_unicode_ci',
+                                                'prefix' => '',
+                                                'prefix_indexes' => true,
+                                            ];
+                                        }
 
                                         // 4. Caching (Opsional, pakai Laravel cache)
                                         $cacheKey = "table_fields_{$databaseConfigId}_{$tableName}";
                                         return cache()->remember($cacheKey, 60, function () use ($config, $tableName, $connectionKey) {
                                             try {
                                                 config(['database.connections.' . $connectionKey => $config]);
-                                                $columns = \Schema::connection($connectionKey)->getColumnListing($tableName);
-                                                \DB::purge($connectionKey);
+                                                $columns = Schema::connection($connectionKey)->getColumnListing($tableName);
+                                                DB::purge($connectionKey);
                                                 return collect($columns)->mapWithKeys(fn($c) => [$c => $c])->toArray();
                                             } catch (\Throwable $e) {
-                                                \DB::purge($connectionKey);
+                                                DB::purge($connectionKey);
                                                 return [];
                                             }
                                         });
                                     })
-                                    ->reactive()
-                                ,
+                                    ->reactive(),
                             ]),
                     ]),
             ]),
