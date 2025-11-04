@@ -76,11 +76,11 @@ class ListenToStream extends Command
                 }
 
                 $processedIds = [];
-                $this->info($processedIds);
+                //$this->info($processedIds);
                 foreach ($messages[$streamKey] as $id => $fields) {
                     // Kirim Job ke antrian Redis default.
                     // Ini adalah inti dari pendelegasian tugas.
-                    $this->info('stream-messages', $fields);
+                    //$this->info('stream-messages', $fields);
 
                     ProcessStreamMessage::dispatch($id, $fields)
                         ->onConnection('redis') // Pastikan worker Anda berjalan di koneksi redis
@@ -101,7 +101,7 @@ class ListenToStream extends Command
                 // Jika terjadi error (misal koneksi Redis putus), log error tersebut
                 // dan tunggu sejenak sebelum mencoba lagi agar tidak crash.
                 Log::error('stream-listener-error: ' . $e->getMessage());
-                $this->error('An error occurred: ' . $e->getMessage());
+                $this->error('An error occurred: ' . $e->getMessage() . $e->getLine() . $e->getFile());
                 sleep(5);
             }
         }
