@@ -74,7 +74,8 @@ return [
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'stream' => env('REDIS_UNIFIED_STREAM', 'app:data:stream'),
             'group' => env('REDIS_STREAM_GROUP', 'stream-workers'),
-            'consumer' => 'consumer-' . Str::random(8),
+            'consumer' => env('REDIS_STREAM_CONSUMER', 'stream-insert-' . gethostname() . '-' . getmypid()),
+            'dispatch_queue' => 'stream-insert', // Separate queue for Laravel jobs
         ],
 
         'redis-update' => [
@@ -86,8 +87,9 @@ return [
             'driver' => 'redis-update-stream',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'stream' => env('REDIS_UNIFIED_UPDATE_STREAM', 'app:data:update:stream'),
-            'group' => env('REDIS_STREAM_GROUP', 'stream-workers'),
-            'consumer' => 'consumer-' . Str::random(8),
+            'group' => env('REDIS_UPDATE_STREAM_GROUP', 'update-workers'),
+            'consumer' => env('REDIS_UPDATE_STREAM_CONSUMER', 'stream-update-' . gethostname() . '-' . getmypid()),
+            'dispatch_queue' => 'stream-update', // Separate queue for Laravel jobs
         ],
     ],
 

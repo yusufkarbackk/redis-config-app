@@ -15,7 +15,8 @@ class RedisStreamConnector implements ConnectorInterface
             $redis,
             Arr::get($config, 'stream'),
             Arr::get($config, 'group'),
-            Arr::get($config, 'consumer')
+            Arr::get($config, 'consumer'),
+            Arr::get($config, 'dispatch_queue', 'stream-insert')
         );
     }
 }

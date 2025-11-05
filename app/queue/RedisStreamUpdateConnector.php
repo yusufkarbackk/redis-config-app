@@ -11,12 +11,12 @@ class RedisStreamUpdateConnector implements ConnectorInterface
     public function connect(array $config)
     {
         $redis = app('redis')->connection(Arr::get($config, 'connection'));
-        //dump($config);
         return new RedisStreamUpdateQueue(
             $redis,
             Arr::get($config, 'stream'),
             Arr::get($config, 'group'),
-            Arr::get($config, 'consumer')
+            Arr::get($config, 'consumer'),
+            Arr::get($config, 'dispatch_queue', 'stream-update')
         );
     }
 }

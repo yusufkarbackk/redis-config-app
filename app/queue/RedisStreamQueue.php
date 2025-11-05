@@ -18,24 +18,40 @@ class RedisStreamQueue extends Queue implements QueueContract
     protected string $stream;
     protected string $group;
     protected string $consumer;
+    protected string $dispatchQueue;
 
-    public function __construct(Connection $redis, string $stream, string $group, string $consumer)
+    public function __construct(Connection $redis, string $stream, string $group, string $consumer, string $dispatchQueue = 'stream-insert')
     {
-        dump('Listener connect to ' . $redis->getHost() . ':' . $redis->getPort());
+        Log::info('RedisStreamQueue initialized', [
+            'host' => $redis->getHost(),
+            'port' => $redis->getPort(),
+            'stream' => $stream,
+            'group' => $group,
+            'consumer' => $consumer,
+            'dispatch_queue' => $dispatchQueue
+        ]);
 
         // Simpan objek phpredis mentah
         $this->client = $redis->client();
         $this->stream = $stream;
         $this->group = $group;
         $this->consumer = $consumer;
-        dump($this->client);
+        $this->dispatchQueue = $dispatchQueue;
 
         // Pastikan consumer-group ada
         try {
             $this->client->xGroup('CREATE', $stream, $group, '0', true);
+            Log::info('Consumer group created or already exists', [
+                'stream' => $stream,
+                'group' => $group
+            ]);
         } catch (GlobalException $e) {
-
-            // ignore “BUSYGROUP”
+            // ignore "BUSYGROUP"
+            Log::debug('Consumer group already exists', [
+                'stream' => $stream,
+                'group' => $group,
+                'error' => $e->getMessage()
+            ]);
         }
     }
 
@@ -48,39 +64,85 @@ class RedisStreamQueue extends Queue implements QueueContract
     /** Ambil 1 pesan berikutnya */
     public function pop($queue = null)
     {
-        $messages = $this->client->xReadGroup(
-            $this->group,
-            $this->consumer,
-            [$this->stream => '>'],
-            10,   // COUNT
-            0    // BLOCK ms (0 = blok selamanya)
-        );
+        try {
+            $messages = $this->client->xReadGroup(
+                $this->group,
+                $this->consumer,
+                [$this->stream => '>'],
+                10,   // COUNT
+                0    // BLOCK ms (0 = blok selamanya)
+            );
 
-        dump($messages);
+            if (!$messages || !isset($messages[$this->stream])) {
+                return null;
+            }
 
-        if (!$messages || !isset($messages[$this->stream])) {
+            $processedCount = 0;
+            $failedCount = 0;
+
+            foreach ($messages[$this->stream] as $id => $fields) {
+                try {
+                    Log::info('Processing stream message', [
+                        'message_id' => $id,
+                        'stream' => $this->stream,
+                        'consumer' => $this->consumer
+                    ]);
+
+                    // Add processing timestamp to payload
+                    $fields['processing_started_at'] = now()->toIso8601String();
+
+                    // Kirim ke Job Laravel biasa dengan separate queue
+                    ProcessStreamMessage::dispatch($id, $fields)
+                        ->onConnection('redis')
+                        ->onQueue($this->dispatchQueue); // Use separate queue
+
+                    $processedCount++;
+
+                    Log::info('Job dispatched successfully', [
+                        'message_id' => $id,
+                        'dispatch_queue' => $this->dispatchQueue
+                    ]);
+
+                } catch (\Throwable $th) {
+                    $failedCount++;
+                    Log::error('Failed to dispatch job', [
+                        'message_id' => $id,
+                        'error' => $th->getMessage(),
+                        'file' => $th->getFile(),
+                        'line' => $th->getLine(),
+                        'trace' => $th->getTraceAsString()
+                    ]);
+
+                    // Continue processing other messages even if one fails
+                    continue;
+                }
+
+                // ACK supaya tidak diulang - acknowledge each message individually
+                $this->client->xAck($this->stream, $this->group, [$id]);
+            }
+
+            Log::info('Batch processing completed', [
+                'stream' => $this->stream,
+                'consumer' => $this->consumer,
+                'processed_count' => $processedCount,
+                'failed_count' => $failedCount,
+                'total_messages' => count($messages[$this->stream])
+            ]);
+
+            return null; // Laravel tak perlu Job implisit
+
+        } catch (\Throwable $e) {
+            Log::error('Critical error in RedisStreamQueue::pop()', [
+                'stream' => $this->stream,
+                'consumer' => $this->consumer,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            // Sleep briefly to prevent tight error loops
+            sleep(1);
             return null;
         }
-
-        dump($messages);
-
-        foreach ($messages[$this->stream] as $id => $fields) {
-            dump($fields); // Debug: tampilkan fields
-            // Kirim ke Job Laravel biasa
-            try {
-                Log::info('Dispatching job for message ID: ' . $id);
-                dump(ProcessStreamMessage::dispatch($id, $fields)
-                    ->onConnection('redis')   // worker redis biasa
-                    ->onQueue('redis'));
-            } catch (\Throwable $th) {
-                //throw $th;
-                Log::error('Failed to dispatch job: ' . $th->getMessage() . $th->getFile() . ':' . $th->getLine());
-            }
-            // ACK supaya tidak diulang
-            $this->client->xAck($this->stream, $this->group, [$id]);
-        }
-
-        return null; // Laravel tak perlu Job implisit
     }
 
     /* --- fungsi lain (size, later, dll) bisa dikosongkan bila tak dipakai --- */

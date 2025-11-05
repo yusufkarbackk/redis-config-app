@@ -22,15 +22,20 @@ class UpdateStreamMessage implements ShouldQueue
 
     public string $messageId;
     public array $payload;
+    public Carbon $jobStartedAt;
+    public Carbon $processingStartedAt;
+    public ?string $streamProcessingStartedAt;
 
     /**
      * Create a new job instance.
      */
     public function __construct(string $messageId, array $payload)
     {
-        // Initialize the job with the message ID and payload
         $this->messageId = $messageId;
         $this->payload = $payload;
+        $this->jobStartedAt = now();
+        $this->processingStartedAt = now();
+        $this->streamProcessingStartedAt = $payload['processing_started_at'] ?? null;
     }
 
     /**
@@ -38,20 +43,56 @@ class UpdateStreamMessage implements ShouldQueue
      */
     public function handle(): void
     {
+        $jobProcessingStartedAt = now();
         $helper = new ProjectHelper();
 
-        dump("▶️  Updating message nih ya {$this->messageId}");
         try {
-            Log::info('Processing payload nih ges', $this->payload);
+            Log::info('Processing update stream message', [
+                'message_id' => $this->messageId,
+                'stream_processing_started_at' => $this->streamProcessingStartedAt,
+                'job_started_at' => $this->jobStartedAt->toIso8601String(),
+                'processing_started_at' => $this->processingStartedAt->toIso8601String(),
+                'job_processing_started_at' => $jobProcessingStartedAt->toIso8601String()
+            ]);
+
             $dataId = $this->payload['data_id'];
             $app = Application::where('api_key', $this->payload['api_key'] ?? null)->first();
+
             if (!$app) {
-                Log::info('No such app found, dropping message');
+                Log::warning('No such app found, dropping update message', [
+                    'api_key' => $this->payload['api_key'] ?? 'not_provided',
+                    'message_id' => $this->messageId
+                ]);
                 return;
             }
 
-            // 2) Parse the true enqueue time
-            $sentAt = Carbon::parse($this->payload['enqueued_at'] ?? now());
+            Log::info('Application found for update', [
+                'app_id' => $app->id,
+                'app_name' => $app->name,
+                'message_id' => $this->messageId,
+                'data_id' => $dataId
+            ]);
+
+            // Use multiple timestamps for better timing analysis
+            $enqueuedAt = Carbon::parse($this->payload['enqueued_at'] ?? now());
+            $sentAt = $this->streamProcessingStartedAt
+                ? Carbon::parse($this->streamProcessingStartedAt)
+                : $enqueuedAt; // Fallback to enqueued_at if processing_started_at not available
+
+            // Calculate timing metrics
+            $queueDelay = $sentAt->diffInSeconds($enqueuedAt);
+            $processingDelay = $jobProcessingStartedAt->diffInSeconds($sentAt);
+
+            Log::info('Update timing metrics calculated', [
+                'message_id' => $this->messageId,
+                'data_id' => $dataId,
+                'enqueued_at' => $enqueuedAt->toIso8601String(),
+                'sent_at' => $sentAt->toIso8601String(),
+                'job_started_at' => $this->jobStartedAt->toIso8601String(),
+                'job_processing_started_at' => $jobProcessingStartedAt->toIso8601String(),
+                'queue_delay_seconds' => $queueDelay,
+                'processing_delay_seconds' => $processingDelay
+            ]);
 
             // 3) Remove meta-fields so data_sent is just business data
             $rawData = collect($this->payload)
@@ -88,7 +129,13 @@ class UpdateStreamMessage implements ShouldQueue
                     // 7) Log success
                     $helper->createLog($app->name, $tableName, $dbConfig, $rawData, $mapped, $sentAt, 'updated successfully');
                 } else {
-                    dump('hold for retry');
+                    Log::warning('Database unreachable for update, holding for retry', [
+                        'message_id' => $this->messageId,
+                        'data_id' => $dataId,
+                        'database_host' => $dbConfig->host,
+                        'database_port' => $dbConfig->port,
+                        'table_name' => $tableName
+                    ]);
                     $this->holdForRetry($sub->id, $tableName, $mapped, $app->name, $rawData, $sentAt, $dbConfig->host);
                 }
             }
