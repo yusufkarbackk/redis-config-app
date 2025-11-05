@@ -79,7 +79,7 @@ return [
         ],
 
         'redis-update' => [
-            'driver' => 'redis-update-stream',
+            'driver' => 'redis',
             'connection' => 'default',
             'queue' => 'redis-update',
         ],
