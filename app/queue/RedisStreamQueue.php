@@ -113,20 +113,24 @@ class RedisStreamQueue extends Queue implements QueueContract
 
                     // Kirim ke Job Laravel biasa dengan separate queue
                     ProcessStreamMessage::dispatch($id, $fields)
-                        ->onConnection('redis')
+                        ->onConnection('redis')  // Use standard Redis connection for Laravel jobs
                         ->onQueue($this->dispatchQueue); // Use separate queue
 
                     $processedCount++;
 
                     Log::info('Job dispatched successfully', [
                         'message_id' => $id,
-                        'dispatch_queue' => $this->dispatchQueue
+                        'dispatch_queue' => $this->dispatchQueue,
+                        'connection' => 'redis',
+                        'payload_keys' => array_keys($fields)
                     ]);
 
                 } catch (\Throwable $th) {
                     $failedCount++;
                     Log::error('Failed to dispatch job', [
                         'message_id' => $id,
+                        'dispatch_queue' => $this->dispatchQueue,
+                        'connection' => 'redis',
                         'error' => $th->getMessage(),
                         'file' => $th->getFile(),
                         'line' => $th->getLine(),

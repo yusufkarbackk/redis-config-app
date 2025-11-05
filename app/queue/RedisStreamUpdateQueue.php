@@ -93,7 +93,7 @@ class RedisStreamUpdateQueue extends Queue implements QueueContract
 
                     // Kirim ke Job Laravel biasa dengan separate queue
                     UpdateStreamMessage::dispatch($id, $fields)
-                        ->onConnection('redis')
+                        ->onConnection('redis')  // Use standard Redis connection for Laravel jobs
                         ->onQueue($this->dispatchQueue); // Use separate queue
 
                     $processedCount++;
