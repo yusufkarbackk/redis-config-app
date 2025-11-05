@@ -65,6 +65,14 @@ class RedisStreamQueue extends Queue implements QueueContract
     public function pop($queue = null)
     {
         try {
+            Log::info('RedisStreamQueue:pop() called', [
+                'stream' => $this->stream,
+                'group' => $this->group,
+                'consumer' => $this->consumer,
+                'queue' => $queue,
+                'dispatch_queue' => $this->dispatchQueue
+            ]);
+
             $messages = $this->client->xReadGroup(
                 $this->group,
                 $this->consumer,
@@ -74,8 +82,20 @@ class RedisStreamQueue extends Queue implements QueueContract
             );
 
             if (!$messages || !isset($messages[$this->stream])) {
+                Log::info('RedisStreamQueue: No messages found', [
+                    'stream' => $this->stream,
+                    'group' => $this->group,
+                    'consumer' => $this->consumer
+                ]);
                 return null;
             }
+
+            Log::info('RedisStreamQueue: Messages found', [
+                'stream' => $this->stream,
+                'group' => $this->group,
+                'consumer' => $this->consumer,
+                'message_count' => count($messages[$this->stream])
+            ]);
 
             $processedCount = 0;
             $failedCount = 0;
