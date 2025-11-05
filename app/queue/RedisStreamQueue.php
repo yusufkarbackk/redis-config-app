@@ -10,6 +10,7 @@ use Redis\Exception;
 
 
 use App\Jobs\ProcessStreamMessage;
+use Exception as GlobalException;
 
 class RedisStreamQueue extends Queue implements QueueContract
 {
@@ -32,7 +33,7 @@ class RedisStreamQueue extends Queue implements QueueContract
         // Pastikan consumer-group ada
         try {
             $this->client->xGroup('CREATE', $stream, $group, '0', true);
-        } catch (RedisException $e) {
+        } catch (GlobalException $e) {
 
             // ignore “BUSYGROUP”
         }

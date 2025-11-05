@@ -1,0 +1,294 @@
+/* Custom White Theme with Dark Blue Accents */
+
+/* Light theme background colors */
+body {
+    --fi-background: 255 255 255; /* Pure white */
+    --fi-surface: 255 255 255; /* White for cards and panels */
+    --fi-surface-50: 248 250 252; /* Very light gray */
+    --fi-surface-100: 241 245 249; /* Light gray */
+    --fi-surface-200: 226 232 240; /* Medium light gray */
+}
+
+/* Dark blue primary colors */
+:root {
+    --fi-primary-50: 239 246 255; /* Very light blue */
+    --fi-primary-100: 219 234 254; /* Light blue */
+    --fi-primary-200: 191 219 254; /* Medium light blue */
+    --fi-primary-300: 147 197 253; /* Light-medium blue */
+    --fi-primary-400: 96 165 250; /* Medium blue */
+    --fi-primary-500: 59 130 246; /* Blue (default) */
+    --fi-primary-600: 37 99 235; /* Medium-dark blue */
+    --fi-primary-700: 29 78 216; /* Dark blue */
+    --fi-primary-800: 30 64 175; /* Darker blue */
+    --fi-primary-900: 30 58 138; /* Very dark blue */
+    --fi-primary-950: 23 37 84; /* Deepest blue */
+}
+
+/* Text colors for light theme */
+body {
+    --fi-foreground: 15 23 42; /* Dark text for contrast on white */
+    --fi-muted-foreground: 71 85 105; /* Muted dark gray */
+    --fi-ring: 59 130 246; /* Ring color same as primary */
+}
+
+/* Sidebar customization - Dark Blue Theme */
+.fi-sidebar {
+    background: rgb(30 64 175) !important; /* Dark blue background */
+    border-right: 1px solid rgb(29 78 216) !important; /* Darker blue border */
+}
+
+/* Sidebar navigation items - White text on dark blue */
+.fi-sidebar .fi-nav-item {
+    color: rgb(255 255 255) !important; /* White text */
+    border-radius: 6px !important;
+    margin: 2px 8px !important;
+}
+
+.fi-sidebar .fi-nav-item:hover {
+    background-color: rgb(29 78 216) !important; /* Darker blue on hover */
+    color: rgb(255 255 255) !important; /* Keep white text */
+}
+
+.fi-sidebar .fi-nav-item[data-active="true"] {
+    background-color: rgb(255 255 255) !important; /* White for active item */
+    color: rgb(29 78 216) !important; /* Dark blue text for active item */
+    font-weight: 600 !important;
+}
+
+/* Sidebar brand/logo area */
+.fi-sidebar .fi-sidebar-header {
+    background: rgb(29 78 216) !important; /* Slightly darker blue */
+    border-bottom: 1px solid rgb(37 99 235) !important;
+}
+
+/* Sidebar footer */
+.fi-sidebar .fi-sidebar-footer {
+    background: rgb(29 78 216) !important; /* Darker blue */
+    border-top: 1px solid rgb(37 99 235) !important;
+}
+
+/* Sidebar user profile area */
+.fi-sidebar .fi-user-menu-trigger {
+    background-color: rgb(37 99 235) !important;
+    color: rgb(255 255 255) !important;
+    border: 1px solid rgb(59 130 246) !important;
+}
+
+.fi-sidebar .fi-user-menu-trigger:hover {
+    background-color: rgb(29 78 216) !important;
+    color: rgb(255 255 255) !important;
+}
+
+/* Sidebar icons */
+.fi-sidebar .fi-nav-item svg {
+    color: rgb(255 255 255) !important; /* White icons */
+}
+
+.fi-sidebar .fi-nav-item:hover svg {
+    color: rgb(255 255 255) !important; /* Keep white on hover */
+}
+
+.fi-sidebar .fi-nav-item[data-active="true"] svg {
+    color: rgb(29 78 216) !important; /* Dark blue for active item */
+}
+
+/* Sidebar section headings */
+.fi-sidebar .fi-sidebar-heading {
+    color: rgb(219 234 254) !important; /* Light blue text */
+    font-weight: 600 !important;
+}
+
+/* Sidebar collapse button */
+.fi-sidebar .fi-sidebar-collapse {
+    background-color: rgb(37 99 235) !important;
+    color: rgb(255 255 255) !important;
+}
+
+.fi-sidebar .fi-sidebar-collapse:hover {
+    background-color: rgb(29 78 216) !important;
+    color: rgb(255 255 255) !important;
+}
+
+/* Mobile sidebar overlay */
+@media (max-width: 768px) {
+    .fi-sidebar {
+        background: rgb(30 64 175) !important; /* Keep dark blue on mobile */
+    }
+}
+
+/* Sidebar dropdown menus */
+.fi-sidebar .fi-dropdown-content {
+    background-color: rgb(30 64 175) !important; /* Dark blue dropdown */
+    border: 1px solid rgb(29 78 216) !important;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3) !important;
+}
+
+.fi-sidebar .fi-dropdown-item {
+    color: rgb(255 255 255) !important; /* White text in dropdown */
+}
+
+.fi-sidebar .fi-dropdown-item:hover {
+    background-color: rgb(29 78 216) !important; /* Darker blue on hover */
+    color: rgb(255 255 255) !important; /* Keep white text */
+}
+
+/* Sidebar scrollbar */
+.fi-sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.fi-sidebar::-webkit-scrollbar-track {
+    background: rgb(29 78 216) !important;
+}
+
+.fi-sidebar::-webkit-scrollbar-thumb {
+    background: rgb(37 99 235) !important;
+    border-radius: 3px;
+}
+
+.fi-sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgb(59 130 246) !important;
+}
+
+/* Sidebar search (if present) */
+.fi-sidebar .fi-input {
+    background-color: rgb(37 99 235) !important;
+    border-color: rgb(59 130 246) !important;
+    color: rgb(255 255 255) !important;
+}
+
+.fi-sidebar .fi-input::placeholder {
+    color: rgb(219 234 254) !important; /* Light blue placeholder */
+}
+
+.fi-sidebar .fi-input:focus {
+    background-color: rgb(37 99 235) !important;
+    border-color: rgb(147 197 253) !important;
+    color: rgb(255 255 255) !important;
+}
+
+/* Cards and panels */
+.fi-card {
+    background-color: rgb(255 255 255) !important;
+    border: 1px solid rgb(226 232 240) !important;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1) !important;
+}
+
+/* Buttons */
+.fi-btn-primary {
+    background-color: rgb(29 78 216) !important; /* Dark blue */
+    border-color: rgb(29 78 216) !important;
+}
+
+.fi-btn-primary:hover {
+    background-color: rgb(30 64 175) !important; /* Darker blue */
+    border-color: rgb(30 64 175) !important;
+}
+
+/* Forms */
+.fi-input {
+    background-color: rgb(255 255 255) !important;
+    border-color: rgb(203 213 225) !important;
+    color: rgb(15 23 42) !important;
+}
+
+.fi-input:focus {
+    border-color: rgb(59 130 246) !important;
+    box-shadow: 0 0 0 3px rgb(59 130 246 / 0.1) !important;
+}
+
+/* Tables */
+.fi-table {
+    background-color: rgb(255 255 255) !important;
+}
+
+.fi-table thead {
+    background-color: rgb(248 250 252) !important;
+    border-bottom: 2px solid rgb(226 232 240) !important;
+}
+
+.fi-table tbody tr:hover {
+    background-color: rgb(248 250 252) !important;
+}
+
+/* Stats widgets */
+.fi-stats-overview-widget .fi-stat {
+    background-color: rgb(255 255 255) !important;
+    border: 1px solid rgb(226 232 240) !important;
+}
+
+/* Header */
+.fi-header {
+    background-color: rgb(255 255 255) !important;
+    border-bottom: 1px solid rgb(226 232 240) !important;
+}
+
+/* Footer */
+.fi-footer {
+    background-color: rgb(255 255 255) !important;
+    border-top: 1px solid rgb(226 232 240) !important;
+}
+
+/* Modals */
+.fi-modal-content {
+    background-color: rgb(255 255 255) !important;
+    border: 1px solid rgb(226 232 240) !important;
+}
+
+/* Dropdowns */
+.fi-dropdown-content {
+    background-color: rgb(255 255 255) !important;
+    border: 1px solid rgb(226 232 240) !important;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important;
+}
+
+/* Badges */
+.fi-badge-primary {
+    background-color: rgb(29 78 216) !important;
+    color: rgb(255 255 255) !important;
+}
+
+.fi-badge-secondary {
+    background-color: rgb(241 245 249) !important;
+    color: rgb(71 85 105) !important;
+}
+
+/* Tabs */
+.fi-tabs .fi-tab[data-active="true"] {
+    border-bottom-color: rgb(29 78 216) !important;
+    color: rgb(29 78 216) !important;
+}
+
+/* Progress bars */
+.fi-progress-bar {
+    background-color: rgb(219 234 254) !important;
+}
+
+.fi-progress-bar-fill {
+    background-color: rgb(29 78 216) !important;
+}
+
+/* Alerts */
+.fi-alert-info {
+    background-color: rgb(239 246 255) !important;
+    border-color: rgb(147 197 253) !important;
+    color: rgb(30 64 175) !important;
+}
+
+.fi-alert-success {
+    background-color: rgb(240 253 244) !important;
+    border-color: rgb(134 239 172) !important;
+    color: rgb(21 128 61) !important;
+}
+
+.fi-alert-warning {
+    background-color: rgb(254 252 232) !important;
+    border-color: rgb(252 211 77) !important;
+    color: rgb(146 64 14) !important;
+}
+
+.fi-alert-danger {
+    background-color: rgb(254 242 242) !important;
+    border-color: rgb(252 165 165) !important;
+    color: rgb(185 28 28) !important;
+}
