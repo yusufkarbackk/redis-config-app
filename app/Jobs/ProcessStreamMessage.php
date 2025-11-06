@@ -168,14 +168,22 @@ class ProcessStreamMessage implements ShouldQueue
                 [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             );
 
-            $cols = implode(', ', array_keys($mapped));
-            $ph = implode(', ', array_map(fn($c) => ":{$c}", array_keys($mapped)));
-            dump("Cols: {$cols}");
-            dump("Placeholders {$ph}");
-            //die();
+            // Handle column names based on database type
+            if ($db->connection_type === 'pgsql') {
+                $quotedCols = array_map(fn($c) => "\"{$c}\"", array_keys($mapped));
+                $colsList = implode(', ', $quotedCols);
+                $ph = implode(', ', array_map(fn($c) => ":{$c}", array_keys($mapped)));
+                $sql = "INSERT INTO \"{$table}\" ({$colsList}) VALUES ({$ph})";
+            } else {
+                $cols = implode('`, `', array_keys($mapped));
+                $ph = implode(', ', array_map(fn($c) => ":{$c}", array_keys($mapped)));
+                $sql = "INSERT INTO `{$table}` (`{$cols}`) VALUES ({$ph})";
+            }
+
+            dump("SQL: {$sql}");
             //\Log::info("Inserting into table {$table}: ", [$mapped, $cols, $ph]);
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("INSERT INTO {$table} ({$cols}) VALUES ({$ph})");
+            $stmt = $pdo->prepare($sql);
             dump($stmt);
             //die();
             foreach ($mapped as $col => $val) {

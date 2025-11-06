@@ -110,7 +110,14 @@ class RetryFailedMessages extends Command
                         // build SQL & bind sekali per subscription
                         $cols = array_keys($data);
                         $ph = implode(',', array_fill(0, count($cols), '?'));
-                        $sql = "INSERT INTO `$table` (" . implode(',', $cols) . ") VALUES ($ph)";
+
+                        // Use double quotes for PostgreSQL compatibility, no quotes for columns
+                        if ($dbConf->connection_type === 'pgsql') {
+                            $sql = "INSERT INTO \"{$table}\" (\"" . implode('","', $cols) . "\") VALUES ($ph)";
+                        } else {
+                            // MySQL uses backticks
+                            $sql = "INSERT INTO `{$table}` (`" . implode('`,`', $cols) . "`) VALUES ($ph)";
+                        }
                         $sent_at = now();
                         Log::info($sql);
                         Log::info("Retrying sub {$id} table {$table}: " . json_encode($data));

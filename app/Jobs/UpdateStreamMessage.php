@@ -164,12 +164,20 @@ class UpdateStreamMessage implements ShouldQueue
             // $ph = implode(', ', array_map(fn($c) => ":{$c}", array_keys($mapped)));
             // dump("Cols: {$cols}");
             // dump("Placeholders {$ph}");
-            $set = implode(', ', array_map(fn($c) => "{$c} = :{$c}", array_keys($mapped)));
+            // Handle column names based on database type
+            if ($db->connection_type === 'pgsql') {
+                $quotedCols = array_map(fn($c) => "\"{$c}\" = :{$c}", array_keys($mapped));
+                $setClause = implode(', ', $quotedCols);
+                $sql = "UPDATE \"{$table}\" SET {$setClause} WHERE data_id = :data_id";
+            } else {
+                $set = implode(', ', array_map(fn($c) => "`{$c}` = :{$c}", array_keys($mapped)));
+                $sql = "UPDATE `{$table}` SET {$set} WHERE data_id = :data_id";
+            }
 
             //die();
             //\Log::info("Inserting into table {$table}: ", [$mapped, $cols, $ph]);
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("UPDATE {$table} SET {$set} WHERE data_id = :data_id");
+            $stmt = $pdo->prepare($sql);
             //dump($stmt);
             //die();
             foreach ($mapped as $col => $val) {
