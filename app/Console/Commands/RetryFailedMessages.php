@@ -30,6 +30,9 @@ class RetryFailedMessages extends Command
             return;
         }
 
+        $this->info('Found ' . count($keys) . ' retry keys to process');
+        Log::info('Found retry keys: ' . json_encode($keys));
+
         // 2) Ekstrak subscription IDs dan eager-load
         $subIds = array_map(fn($k) => (int) last(explode(':', $k)), $keys);
         $subs = ApplicationTableSubscription::with([
@@ -91,20 +94,13 @@ class RetryFailedMessages extends Command
                     // 5) Loop setiap entry
                     foreach ($entries as $json) {
                         $payload = json_decode($json, true);
-                        $data = [];
 
                         Log::info("Processing entry: " . json_encode($payload['data']));
 
-                        // filter & rename fields
-                        foreach ($mapping as $appField => $col) {
-                            Log::info("Mapping app field {$appField} to column {$col}");
-                            //$payload['data'][$appField];
-                            if (isset($payload['data'][$col])) {
-                                $data[$col] = $payload['data'][$col];
-                            }
-                        }
+                        // Data is already mapped from ProcessStreamMessage job, use directly
+                        $data = $payload['data'];
 
-                        Log::info("data: ", $data);
+                        Log::info("Data to insert: " . json_encode($data));
 
                         if (empty($data)) {
                             $successCount++;
@@ -126,12 +122,12 @@ class RetryFailedMessages extends Command
 
                             // log success
                             \App\Models\Log::create([
-                                'source' => $appName,
-                                'destination' => $table,
+                                'source' => $payload['source'] ?? $appName,
+                                'destination' => $payload['table'] ?? $table,
                                 'host' => $dbConf->host,
-                                'data_sent' => json_encode($payload['data']),
+                                'data_sent' => json_encode($payload['raw_data'] ?? $payload['data']),
                                 'data_received' => json_encode($data),
-                                'sent_at' => $sent_at,
+                                'sent_at' => $payload['sent_at'] ?? $sent_at,
                                 'received_at' => now(),
                                 'status' => 'OK',
                                 'message' => 'retried',
@@ -139,9 +135,14 @@ class RetryFailedMessages extends Command
 
                             $successCount++;
                         } catch (\Throwable $e) {
-                            //$pdo->rollBack();
-                            Log::error("Retry failed sub {$id} table {$table}: {$e->getMessage()} - {$e->getLine()}");
-                            // tidak increment successCount
+                            $pdo->rollBack();
+                            Log::error("Retry failed sub {$id} table {$table}: " . $e->getMessage(), [
+                                'error' => $e->getMessage(),
+                                'file' => $e->getFile(),
+                                'line' => $e->getLine(),
+                                'data' => $data
+                            ]);
+                            // Don't increment successCount so this entry remains for retry
                         }
                     }
 
