@@ -48,7 +48,7 @@ class ProcessStreamMessage implements ShouldQueue
         $helper = new ProjectHelper();
 
         try {
-            FacadesLog::info('Processing stream message', [
+            FacadesLog::info('Processing stream message (Dispatcher)', [
                 'message_id' => $this->messageId,
                 'stream_processing_started_at' => $this->streamProcessingStartedAt,
                 'job_started_at' => $this->jobStartedAt->toIso8601String(),
@@ -67,7 +67,7 @@ class ProcessStreamMessage implements ShouldQueue
                 return;
             }
 
-            FacadesLog::info('Application found', [
+            FacadesLog::info('Application found for dispatch', [
                 'app_id' => $app->id,
                 'app_name' => $app->name,
                 'message_id' => $this->messageId
@@ -93,22 +93,32 @@ class ProcessStreamMessage implements ShouldQueue
                 'processing_delay_seconds' => $processingDelay
             ]);
 
-            // 3) Remove meta-fields so data_sent is just business data
+            // Remove meta-fields so data_sent is just business data
             $rawData = collect($this->payload)
                 ->except(['api_key', 'enqueued_at'])
                 ->toArray();
-            //dd($rawData);
-            // 4) Load all table subscriptions for this app
+
+            // Load all table subscriptions for this app
             $subscriptions = ApplicationTableSubscription::with([
                 'databaseTable.database',
                 'fieldMappings.applicationField',
             ])->where('application_id', $app->id)->get();
 
+            if ($subscriptions->isEmpty()) {
+                FacadesLog::warning('No subscriptions found for application', [
+                    'app_id' => $app->id,
+                    'app_name' => $app->name,
+                    'message_id' => $this->messageId
+                ]);
+                return;
+            }
+
+            $dispatchedJobs = [];
+            $totalMappedSubscriptions = 0;
+
+            // Dispatch separate jobs for each subscription (parallel processing)
             foreach ($subscriptions as $sub) {
-                $dbConfig = $sub->databaseTable->database;
-                $tableName = $sub->databaseTable->table_name;
-                // dump("sub id: {$sub->id}");
-                // 5) Build the mapped payload for this table
+                // Build the mapped payload for this table
                 $mapped = [];
                 foreach ($sub->fieldMappings as $mapping) {
                     $appFieldName = $mapping->applicationField->name;
@@ -116,124 +126,73 @@ class ProcessStreamMessage implements ShouldQueue
                         $mapped[$mapping->mapped_to] = $this->payload[$appFieldName];
                     }
                 }
-                //$mapped['data_id'] = $dataId;
-                //dd($mapped);
+
                 if (empty($mapped)) {
                     // nothing to insert for this table
+                    FacadesLog::info('Skipping subscription - no mapped data', [
+                        'subscription_id' => $sub->id,
+                        'table_name' => $sub->databaseTable->table_name,
+                        'message_id' => $this->messageId
+                    ]);
                     continue;
                 }
-                // 6) Attempt to insert (or queue for retry)
-                if ($helper->isDatabaseServerReachable($dbConfig->host, $dbConfig->port)) {
-                    $this->insertIntoTable($dbConfig, $tableName, $mapped, $app->name, $rawData, $sentAt);
-                    // 7) Log success
-                    $helper->createLog($app->name, $tableName, $dbConfig, $rawData, $mapped, $sentAt);
-                } else {
-                    FacadesLog::warning('Database unreachable, holding for retry', [
+
+                $totalMappedSubscriptions++;
+
+                try {
+                    // Dispatch job to queue for parallel processing
+                    $processSubscriptionJob = new ProcessSubscriptionJob(
+                        $sub,
+                        $this->payload,
+                        $rawData,
+                        $mapped,
+                        $sentAt
+                    );
+
+                    dispatch($processSubscriptionJob);
+                    $dispatchedJobs[] = [
+                        'subscription_id' => $sub->id,
+                        'table_name' => $sub->databaseTable->table_name,
+                        'database_host' => $sub->databaseTable->database->host,
+                    ];
+
+                    FacadesLog::info('Dispatched subscription job for parallel processing', [
                         'message_id' => $this->messageId,
-                        'database_host' => $dbConfig->host,
-                        'database_port' => $dbConfig->port,
-                        'table_name' => $tableName
+                        'subscription_id' => $sub->id,
+                        'table_name' => $sub->databaseTable->table_name,
+                        'database_host' => $sub->databaseTable->database->host,
                     ]);
-                    $this->holdForRetry($sub->id, $tableName, $mapped, $app->name, $rawData, $sentAt, $dbConfig->host);
+
+                } catch (\Throwable $e) {
+                    FacadesLog::error('Failed to dispatch subscription job', [
+                        'message_id' => $this->messageId,
+                        'subscription_id' => $sub->id,
+                        'table_name' => $sub->databaseTable->table_name,
+                        'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                    ]);
                 }
             }
+
+            FacadesLog::info('Stream message dispatch completed', [
+                'message_id' => $this->messageId,
+                'app_id' => $app->id,
+                'app_name' => $app->name,
+                'total_subscriptions' => $subscriptions->count(),
+                'mapped_subscriptions' => $totalMappedSubscriptions,
+                'dispatched_jobs' => count($dispatchedJobs),
+                'dispatch_details' => $dispatchedJobs,
+            ]);
+
         } catch (\Throwable $e) {
-            FacadesLog::info("lah error");
-            Facadeslog::error("Job processing failed", [
+            FacadesLog::error('Stream message dispatcher failed', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                // Sangat direkomendasikan untuk menyertakan objek exception
-                // agar Anda mendapatkan stack trace lengkap di log.
+                'message_id' => $this->messageId,
                 'exception' => $e
             ]);
-            return;
         }
-    }
-
-    protected function insertIntoTable($db, string $table, array $mapped, string $source, array $rawData, Carbon $sentAt): void
-    {
-        FacadesLog::info('Inserting into table ');
-        try {
-            dump('inserting into table ' . $table . " " . $db->host);
-            dump($mapped);
-            dump("DB Password: {$db->password}");
-
-            $dbPassword = $db->password != null ? decrypt($db->password) : '';
-            FacadesLog::info("Inserting connection type {$db->connection_type}");
-            $pdo = new PDO(
-                "{$db->connection_type}:host={$db->host};dbname={$db->database_name}",
-                $db->username,
-                $dbPassword,
-                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-            );
-
-            // Handle column names based on database type
-            if ($db->connection_type === 'pgsql') {
-                $quotedCols = array_map(fn($c) => "\"{$c}\"", array_keys($mapped));
-                $colsList = implode(', ', $quotedCols);
-                $ph = implode(', ', array_map(fn($c) => ":{$c}", array_keys($mapped)));
-                $sql = "INSERT INTO \"{$table}\" ({$colsList}) VALUES ({$ph})";
-            } else {
-                $cols = implode('`, `', array_keys($mapped));
-                $ph = implode(', ', array_map(fn($c) => ":{$c}", array_keys($mapped)));
-                $sql = "INSERT INTO `{$table}` (`{$cols}`) VALUES ({$ph})";
-            }
-
-            dump("SQL: {$sql}");
-            //\Log::info("Inserting into table {$table}: ", [$mapped, $cols, $ph]);
-            $pdo->beginTransaction();
-            $stmt = $pdo->prepare($sql);
-            dump($stmt);
-            //die();
-            foreach ($mapped as $col => $val) {
-                $stmt->bindValue(":{$col}", $val);
-            }
-            $stmt->execute();
-            $pdo->commit();
-        } catch (\Throwable $e) {
-            FacadesLog::info('error insert');
-            FacadesLog::error("Error: {$e->getMessage()} {$e->getFile()}:{$e->getLine()}");
-        }
-    }
-
-    protected function holdForRetry(
-        int $subscriptionId,
-        string $table,
-        array $mapped,
-        string $source,
-        array $rawData,
-        Carbon $sentAt,
-        string $host,
-        string $error = 'database unreachable',
-    ): void {
-        // 1) key per‐subscription
-        $retryKey = "retry:subscription:{$subscriptionId}";
-
-        // 2) isi yang akan kita retry nanti
-        $entry = [
-            'table' => $table,
-            'data' => $mapped,
-            'source' => $source,
-            'raw_data' => $rawData,
-            'sent_at' => $sentAt->toDateTimeString(),
-            'error' => $error,
-        ];
-
-        // 3) push ke list
-        Redis::rpush($retryKey, json_encode($entry));
-
-        // 4) log ke DB
-        \App\Models\Log::create([
-            'source' => $source,
-            'destination' => $table,
-            'host' => $host,
-            'data_sent' => json_encode($rawData),
-            'data_received' => json_encode([]),
-            'sent_at' => $sentAt,
-            'received_at' => now(),
-            'status' => 'RETRY',
-            'message' => "held for retry: {$error}",
-        ]);
     }
 }
